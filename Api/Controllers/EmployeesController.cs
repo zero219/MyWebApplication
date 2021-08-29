@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace Api.Controllers
 {
-    
+
     [ApiController]
     [Route("api")]
     [Authorize(Policy = "SystemAndAdmin")]
@@ -115,7 +115,7 @@ namespace Api.Controllers
             //3.employeeUpdateDto映射回employeeEntity
             _mapper.Map(employeeUpdateDto, employeeEntity);
 
-            await _employeeService.EditEntity(employeeEntity);
+            await _employeeService.EditEntityAsync(employeeEntity);
 
             return NoContent();
         }
@@ -144,7 +144,7 @@ namespace Api.Controllers
                 return new UnprocessableEntityObjectResult(ModelState);
             }
             _mapper.Map(pathEmployee, employee);
-            await _employeeService.EditEntity(employee);
+            await _employeeService.EditEntityAsync(employee);
             return NoContent();
         }
 
@@ -162,7 +162,7 @@ namespace Api.Controllers
                 return NotFound("查询无此数据");
             }
             var employee = await _employeeService.QueryEmployees(x => x.Id == employeeId).FirstOrDefaultAsync();
-            await _employeeService.DeleteEntity(employee);
+            await _employeeService.DeleteEntityAsync(employee);
             return NoContent();
         }
     }

@@ -59,9 +59,9 @@ namespace Api.Controllers
             "application/vnd.company.hateoas+json",
             "application/vnd.company.company.full+json",
             "application/vnd.company.company.full.hateoas+json")]
-        ////ETAG缓存过期模型
+        //ETAG缓存过期模型
         [HttpCacheExpiration(CacheLocation = CacheLocation.Public, MaxAge = 60)]
-        ////ETAG缓存验证模型
+        //ETAG缓存验证模型
         [HttpCacheValidation(MustRevalidate = true)]
         public async Task<ActionResult> GetCompanies([FromHeader(Name = "Accept")] string mediaType, [FromQuery] CompanyParameters parameters)
         {
@@ -103,7 +103,6 @@ namespace Api.Controllers
                 totalPages = company.TotalPages,
                 previousPage = previousPageLink,
                 nextPage = nextPageLink,
-                //orderBy=
             };
             //自定义翻页Header
             Response.Headers.Add("X-Pagination", JsonSerializer.Serialize(paginationMetadata, new JsonSerializerOptions
@@ -299,7 +298,7 @@ namespace Api.Controllers
                 return NotFound();
             }
             var companyEntity = await _companyService.QueryWhere(x => x.Id == companyId).FirstOrDefaultAsync();
-            await _companyService.DeleteEntity(companyEntity);
+            await _companyService.DeleteEntityAsync(companyEntity);
             return NoContent();
         }
 

@@ -58,15 +58,15 @@ namespace Bll
         /// </summary>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        public async Task<PageList<Company>> QueryPage(CompanyParameters parameters)
+        public Task<PageList<Company>> QueryPage(CompanyParameters parameters)
         {
             Dictionary<string, PropertyMappingValue> propertyMapping = GetPropertyMapping<CompanyDto, Company>();
 
             if (string.IsNullOrWhiteSpace(parameters.CompanyName))
             {
-                return await LoadPage(parameters.pageNumber, parameters.pageSize, null, parameters.orderBy, propertyMapping);
+                return LoadPage(parameters.pageNumber, parameters.pageSize, null, parameters.orderBy, propertyMapping);
             }
-            return await LoadPage(parameters.pageNumber, parameters.pageSize, x => x.Name == parameters.CompanyName, parameters.orderBy, propertyMapping);
+            return LoadPage(parameters.pageNumber, parameters.pageSize, x => x.Name == parameters.CompanyName, parameters.orderBy, propertyMapping);
 
         }
     }
