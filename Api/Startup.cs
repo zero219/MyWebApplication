@@ -26,6 +26,7 @@ using System.Text;
 using Swashbuckle.AspNetCore.Filters;
 using Autofac;
 using System.Runtime.Loader;
+using Common.Redis;
 
 namespace Api
 {
@@ -42,6 +43,7 @@ namespace Api
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            Console.WriteLine("执行顺序ConfigureServices");
 
             #region 响应缓存,框架自带的,会被ETAG覆盖,然并卵.
             //框架自带当做例子
@@ -228,6 +230,7 @@ namespace Api
         #region Autofac容器
         public void ConfigureContainer(ContainerBuilder builder)
         {
+            Console.WriteLine("执行顺序ConfigureContainer");
             /*
              * InstancePerDependency等于AddTransient
              * InstancePerLifetimeScope等于AddScoped
@@ -239,6 +242,10 @@ namespace Api
 
             Assembly assemblyBll = AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName("Bll"));
             builder.RegisterTypes(assemblyBll.GetTypes()).AsImplementedInterfaces().InstancePerLifetimeScope();
+
+            //redis缓存
+            var section = Configuration.GetSection("Redis:DefaultConnection").Value;
+            builder.Register(x => new RedisHelpers(section, "")).SingleInstance();
         }
         #endregion
 
@@ -246,12 +253,14 @@ namespace Api
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            Console.WriteLine("执行顺序Configure");
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
             }
             else
             {
+                //处理服务器故障
                 app.UseExceptionHandler(appBuilder =>
                 {
                     appBuilder.Run(async context =>

@@ -31,7 +31,6 @@
  针对一个合理请求，API无法返回他的响应。
  HTTP 5xx错误
  会对API整体可用性造成影响
-#
 
 #Restful特点
 1.无状态
@@ -39,7 +38,6 @@
 3.使用http的动词
 4.Hatoas超媒体及应用状态引擎
 5.对于增删改差好用,面对过程不好用,允许项目中不是Restful风格api
-#
 
 #Restful的6个约束
 前后端分离
@@ -48,24 +46,21 @@
 统一数据格式→json、xml;自我发现→分页功能
 可缓存
 按需代码
-#
 
 #Resutful级别成熟度
-级别一
+#级别一
 有api,通过http传输
-级别二
+#级别二
 面向资源
-级别三
+#级别三
 http语法
-级别四
+#级别四
 超媒体应用状态引擎的实现
 api自我发现
 超媒体=多媒体+超文本
 
-推荐网站
+#推荐网站
 github、豆瓣
-#
-
 
 #内容协商(统一格式)
 传入json、xml格式
@@ -74,18 +69,14 @@ Content-Type application/json、application/xml
 Aceept application/json、application/xml
 .net core中默认是json格式,xml需要设置
 
-#
-DTO是面向界面,面向UI;Model面向业务;OutoMapper使Dto和Model相互转换
-#
+#DTO是面向界面,面向UI;Model面向业务;OutoMapper使Dto和Model相互转换
 
-获取资源
-
+#获取资源
 
 #HttpHead
  1.Head和Get几乎一样,但Head没有请求体(Body)
  2.可以用来检测缓存
  3.检测资源是否存在
-#
 
 #获取所有资源
 GET api/companies
@@ -204,6 +195,7 @@ GET api/companies/(id1,id2)
 
 #自定义实体错误422
 
+#处理服务器故障
 
 #整体更新\替换
 PUT api/companies/{companyId}/employees/{employeeId}
@@ -337,3 +329,11 @@ NotFound()404
 
 #Autofac
 官方文档:https://autofac.readthedocs.io/en/latest/
+
+#log4net
+
+#redis
+
+#rabbitmq
+
+#Indentity

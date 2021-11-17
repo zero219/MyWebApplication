@@ -40,8 +40,21 @@ namespace Api
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
             .UseServiceProviderFactory(new AutofacServiceProviderFactory())// π”√Autofac
+            .ConfigureServices(services =>
+            {
+                Console.WriteLine("÷¥––À≥–ÚConfigureServices");
+            })
+            .ConfigureAppConfiguration(config =>
+            {
+                Console.WriteLine("÷¥––À≥–ÚConfigureAppConfiguration");
+            })
+            .ConfigureHostConfiguration(builder =>
+            {
+                Console.WriteLine("÷¥––À≥–ÚConfigureHostConfiguration");
+            })
             .ConfigureWebHostDefaults(webBuilder =>
             {
+                Console.WriteLine("÷¥––À≥–ÚConfigureWebHostDefaults");
                 webBuilder.UseStartup<Startup>();
             });
     }
