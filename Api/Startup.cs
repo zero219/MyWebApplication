@@ -27,6 +27,8 @@ using Swashbuckle.AspNetCore.Filters;
 using Autofac;
 using System.Runtime.Loader;
 using Common.Redis;
+using Entity.Models.IdentityModels;
+using Microsoft.AspNetCore.Identity;
 
 namespace Api
 {
@@ -55,7 +57,7 @@ namespace Api
             services.AddHttpCacheHeaders(expires =>//过期模型
             {
                 //过期时间
-                expires.MaxAge = 90;
+                expires.MaxAge = 1;
                 //私有的
                 expires.CacheLocation = CacheLocation.Private;
             },
@@ -151,21 +153,58 @@ namespace Api
             });
             #endregion
 
-            #region 添加授权
+            #region 数据库连接
+            services.AddDbContext<RoutineDbContext>(options =>
+            {
+                options.UseSqlite(Configuration.GetConnectionString("DefaultConnection"));
+            });
+            #endregion
+
+            #region Identity
+
+            #region 注册Identity服务
+            services.AddIdentity<ApplicationUser, ApplicationRole>()
+                .AddEntityFrameworkStores<RoutineDbContext>();
+            #endregion
+
+            #region Identity设置
+            services.Configure<IdentityOptions>(options =>
+            {
+                // 密码设置
+                options.Password.RequireDigit = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequiredLength = 6;
+                options.Password.RequiredUniqueChars = 0;
+                //登陆时邮箱是否要验证
+                options.SignIn.RequireConfirmedAccount = false;
+                // Lockout settings.
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.AllowedForNewUsers = true;
+
+                // User settings.
+                options.User.AllowedUserNameCharacters =
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
+                options.User.RequireUniqueEmail = false;
+            });
+            #endregion
+
+            #region 添加授权,基于Claim授权
             services.AddAuthorization(options =>
             {
                 options.AddPolicy("Admin", policy => policy.RequireRole("Admin").Build());
                 options.AddPolicy("System", policy => policy.RequireRole("System").Build());
                 options.AddPolicy("SystemOrAdmin", policy => policy.RequireRole("Admin", "System"));//或的关系
                 options.AddPolicy("SystemAndAdmin", policy => policy.RequireRole("Admin").RequireRole("System"));//且的关系
+                //
+                options.AddPolicy("EmployeeOnly", policy => policy.RequireClaim("EmployeeNumber"));
+                options.AddPolicy("Founders", policy => policy.RequireClaim("EmployeeNumber", "1", "2", "3", "4", "5"));
+
             });
             #endregion
 
-            #region 数据库连接
-            services.AddDbContext<RoutineDbContext>(options =>
-            {
-                options.UseSqlite(Configuration.GetConnectionString("DefaultConnection"));
-            });
             #endregion
 
             #region 注册Swagger

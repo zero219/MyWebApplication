@@ -11,12 +11,15 @@ using AutoMapper;
 using Entity.Models;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Authorization;
+using Entity.Dtos.EmployeesDtos;
 
 namespace Api.Controllers
 {
 
     [ApiController]
     [Route("api")]
+    //使用Identity框架的多角色验证是，中间件用的并不是jwt验证，这里必须使用jwt的Bearer验证
+    [Authorize(AuthenticationSchemes = "Bearer")]
     [Authorize(Policy = "SystemAndAdmin")]
     public class EmployeesController : ControllerBase
     {

@@ -18,6 +18,7 @@ using Microsoft.Net.Http.Headers;
 using Common.ActionAttributes;
 using Marvin.Cache.Headers;
 using Microsoft.AspNetCore.Authorization;
+using Entity.Dtos.CompaniesDtos;
 
 namespace Api.Controllers
 {
@@ -31,6 +32,7 @@ namespace Api.Controllers
      **/
     [ApiController]
     [Route("api")]
+    [Authorize(AuthenticationSchemes = "Bearer")]
     [Authorize(Policy = "SystemAndAdmin")]
     //隐藏某个webapi
     //[ApiExplorerSettings(IgnoreApi = true)]

@@ -10,37 +10,82 @@ using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
+using Entity.Dtos;
+using Microsoft.AspNetCore.Identity;
+using Entity.Models.IdentityModels;
 
 namespace Api.Controllers
 {
     [Route("api/auth")]
     [ApiController]
-    
+
     public class AuthenticateController : ControllerBase
     {
         private readonly IConfiguration _configuration;
-        public AuthenticateController(IConfiguration configuration)
+        /// <summary>
+        /// 用户储存帮助类
+        /// </summary>
+        private readonly UserManager<ApplicationUser> _userManager;
+        /// <summary>
+        /// 用户登录帮助类
+        /// </summary>
+        private readonly SignInManager<ApplicationUser> _signInManager;
+        public AuthenticateController(IConfiguration configuration,
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager)
         {
             _configuration = configuration;
+            _userManager = userManager;
+            _signInManager = signInManager;
         }
+
         /// <summary>
-        /// jwtToken
+        /// 注册
         /// </summary>
+        /// <param name="registerDto"></param>
         /// <returns></returns>
-        [HttpGet("token")]
+        [HttpPost("register")]
         [AllowAnonymous]
-        public IActionResult Token()
+        public async Task<IActionResult> Register(RegisterDto registerDto)
         {
-            //用户
-            var tokenModel = new
+            var user = new ApplicationUser
             {
-                //用户id
-                Uid = 1,
-                //角色名
-                Role = "Admin,System",
-                //职能
-                Duty = "All"
+                Id = Guid.NewGuid().ToString(),
+                UserName = registerDto.UserName,
+                Email = registerDto.Email
             };
+            var result = await _userManager.CreateAsync(user, registerDto.PassWord);
+            if (!result.Succeeded)
+            {
+                return BadRequest();
+            }
+            return Ok();
+        }
+
+        /// <summary>
+        /// 登录
+        /// </summary>
+        /// <param name="loginDto"></param>
+        /// <returns></returns>
+        [HttpPost("login")]
+        [AllowAnonymous]
+        public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
+        {
+            var loginResult = await _signInManager.PasswordSignInAsync(
+              loginDto.UserName,
+              loginDto.PassWord,
+              false,//是否保存cookie
+              false//3次是否锁定
+           );
+            //判断登录
+            if (!loginResult.Succeeded)
+            {
+                return BadRequest();
+            }
+            //获取用户
+            var user = await _userManager.FindByNameAsync(loginDto.UserName);
+            //获取角色
+            var roles = await _userManager.GetRolesAsync(user);
             //jwt签名
             string secret = _configuration["JwtTokenManagement:Secret"];
             //颁发者
@@ -72,7 +117,8 @@ namespace Api.Controllers
                 new Claim(JwtRegisteredClaimNames.Aud,audience),
             };
             //多个角色
-            claims.AddRange(tokenModel.Role.Split(',').Select(x => new Claim(ClaimTypes.Role, x)));
+            claims.AddRange(roles.Select(x => new Claim(ClaimTypes.Role, x)));
+            //claims.AddRange("Admin,System".Split(',').Select(x => new Claim(ClaimTypes.Role, x)));
             #endregion
 
             #region signiture
@@ -90,5 +136,18 @@ namespace Api.Controllers
 
             return Ok("Bearer " + tokenStr);
         }
+
+        /// <summary>
+        /// 登出
+        /// </summary>
+        /// <returns></returns>
+        [Authorize(Roles = "ADMIN")]
+        [HttpGet("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            await _signInManager.SignOutAsync();
+            return Ok();
+        }
+
     }
 }

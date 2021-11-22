@@ -1,4 +1,5 @@
 ﻿using Entity.Dtos;
+using Entity.Dtos.EmployeesDtos;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;

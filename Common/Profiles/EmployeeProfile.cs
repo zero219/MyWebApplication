@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Entity.Dtos;
+using Entity.Dtos.EmployeesDtos;
 using Entity.Models;
 using System;
 using System.Collections.Generic;
