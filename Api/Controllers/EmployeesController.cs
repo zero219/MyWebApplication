@@ -15,12 +15,11 @@ using Entity.Dtos.EmployeesDtos;
 
 namespace Api.Controllers
 {
-
+   
     [ApiController]
     [Route("api")]
     //使用Identity框架的多角色验证是，中间件用的并不是jwt验证，这里必须使用jwt的Bearer验证
-    [Authorize(AuthenticationSchemes = "Bearer")]
-    [Authorize(Policy = "SystemAndAdmin")]
+    [Authorize(AuthenticationSchemes = "Bearer", Policy = "员工管理")]
     public class EmployeesController : ControllerBase
     {
         private readonly IEmployeeService _employeeService;
@@ -35,12 +34,17 @@ namespace Api.Controllers
         /// <summary>
         /// 获取公司员工
         /// </summary>
-        /// <param name="companyId">公司ID</param>
+        /// <param name="mediaType"></param>
+        /// <param name="companyId"></param>
         /// <returns></returns>
         [HttpGet("companies/{companyId}/employees", Name = nameof(GetEmployees))]
+        [Produces("application/json",
+            "application/vnd.company.hateoas+json",
+            "application/vnd.company.company.full+json",
+            "application/vnd.company.company.full.hateoas+json")]
         //框架自带的响应缓存,但会被ETAG覆盖,然并卵.
         [ResponseCache(Duration = 60)]
-        public async Task<ActionResult<IEnumerable<EmployeeDto>>> GetEmployees(Guid companyId)
+        public async Task<ActionResult<IEnumerable<EmployeeDto>>> GetEmployees([FromHeader(Name = "Accept")] string mediaType, Guid companyId)
         {
             if (!await _employeeService.QueryEmployees(p => p.CompanyId == companyId).AnyAsync())
             {

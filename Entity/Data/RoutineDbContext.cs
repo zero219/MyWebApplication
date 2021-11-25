@@ -329,15 +329,6 @@ namespace Entity.Data
                 b.HasMany(u => u.Tokens).WithOne(e => e.User).HasForeignKey(ut => ut.UserId).IsRequired();
             });
 
-            #region 种子数据
-            //添加角色数据
-            modelBuilder.Entity<ApplicationRole>().HasData(new ApplicationRole
-            {
-                Id = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
-                Name = "管理员",
-                NormalizedName = "Admin".ToUpper(),//规范名称
-            });
-
             //添加用户数据
             ApplicationUser applicationUser = new ApplicationUser()
             {
@@ -356,17 +347,16 @@ namespace Entity.Data
             applicationUser.PasswordHash = ph.HashPassword(applicationUser, "zzc123");
             modelBuilder.Entity<ApplicationUser>().HasData(applicationUser);
 
-            //用户绑定角色
-            modelBuilder.Entity<ApplicationUserRole>().HasData(new ApplicationUserRole
-            {
-                RoleId = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
-                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654"
-            });
-            #endregion
-
             #endregion
 
             #region ApplicationRole
+            //添加角色数据
+            modelBuilder.Entity<ApplicationRole>().HasData(new ApplicationRole
+            {
+                Id = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
+                Name = "管理员",
+                NormalizedName = "Admin".ToUpper(),//规范名称
+            });
             //主外键关联
             modelBuilder.Entity<ApplicationRole>(b =>
             {
@@ -375,12 +365,52 @@ namespace Entity.Data
             });
             #endregion
 
+            #region ApplicationClaims
+            modelBuilder.Entity<ApplicationUserClaim>().HasData(new ApplicationUserClaim
+            {
+                Id = 1,
+                ClaimType = "Companies",
+                ClaimValue = "dadfaa82-428f-4495-8603-8bcee2e9bfdc",
+                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
+            },
+            new ApplicationUserClaim
+            {
+                Id = 2,
+                ClaimType = "Employees",
+                ClaimValue = "daadf852-3406-4fec-828c-c504f69dfa54",
+                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
+            },
+            new ApplicationUserClaim
+            {
+                Id = 3,
+                ClaimType = "Users",
+                ClaimValue = "a2422c72-fe2c-49d7-9049-a4eaa9375b4a",
+                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
+            },
+            new ApplicationUserClaim
+            {
+                Id = 4,
+                ClaimType = "Roles",
+                ClaimValue = "b36ffe4d-4aaf-4d2b-9907-ec2884eeffb8",
+                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
+            });
+            #endregion
+
+            #region ApplicationUserRole
+            //用户绑定角色
+            modelBuilder.Entity<ApplicationUserRole>().HasData(new ApplicationUserRole
+            {
+                RoleId = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
+                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654"
+            });
+            #endregion
+
             #region 修改表名
             //修改表名
             modelBuilder.Entity<ApplicationUser>().ToTable("ApplicationUsers");
-            modelBuilder.Entity<ApplicationUserClaim>().ToTable("ApplicationClaims");
-            modelBuilder.Entity<ApplicationUserToken>().ToTable("ApplicationTokens");
-            modelBuilder.Entity<ApplicationUserLogin>().ToTable("ApplicationLogins");
+            modelBuilder.Entity<ApplicationUserClaim>().ToTable("ApplicationUserClaims");
+            modelBuilder.Entity<ApplicationUserToken>().ToTable("ApplicationUserTokens");
+            modelBuilder.Entity<ApplicationUserLogin>().ToTable("ApplicationUserLogins");
             modelBuilder.Entity<ApplicationUserRole>().ToTable("ApplicationUserRoles");
             modelBuilder.Entity<ApplicationRole>().ToTable("ApplicationRoles");
             modelBuilder.Entity<ApplicationRoleClaim>().ToTable("ApplicationRoleClaims");

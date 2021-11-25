@@ -10,9 +10,10 @@ using System.Linq;
 using System.Threading.Tasks;
 namespace Api.Controllers
 {
-    //[Authorize(AuthenticationSchemes = "Bearer")]
+    
     [ApiController]
     [Route("api")]
+    [Authorize(AuthenticationSchemes = "Bearer",Roles ="管理员", Policy = "角色管理")]
     public class RolesController : ControllerBase
     {
         private readonly RoleManager<ApplicationRole> _roleManager;

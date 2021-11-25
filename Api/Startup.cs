@@ -29,6 +29,8 @@ using System.Runtime.Loader;
 using Common.Redis;
 using Entity.Models.IdentityModels;
 using Microsoft.AspNetCore.Identity;
+using Common.IdentityAuth;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Api
 {
@@ -129,13 +131,10 @@ namespace Api
             {
                 x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer(y =>
+            }).AddJwtBearer(options =>
             {
-                y.TokenValidationParameters = new TokenValidationParameters
+                options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    // 是否开启签名认证
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(Configuration.GetSection("JwtTokenManagement")["Secret"])),
                     //验证发行人
                     ValidateIssuer = true,
                     //发行人
@@ -146,6 +145,9 @@ namespace Api
                     ValidAudience = Configuration.GetSection("JwtTokenManagement")["Audience"],
                     //验证是token否过期
                     ValidateLifetime = true,
+                    // 是否开启签名认证
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(Configuration.GetSection("JwtTokenManagement")["Secret"])),
                     //这个是缓冲过期时间，也就是说，即使我们配置了过期时间，这里也要考虑进去，过期时间+缓冲，默认好像是7分钟，你可以直接设置为0
                     ClockSkew = TimeSpan.Zero,
                     RequireExpirationTime = true,
@@ -194,15 +196,35 @@ namespace Api
             #region 添加授权,基于Claim授权
             services.AddAuthorization(options =>
             {
+                //基于Role的策略
                 options.AddPolicy("Admin", policy => policy.RequireRole("Admin").Build());
-                options.AddPolicy("System", policy => policy.RequireRole("System").Build());
                 options.AddPolicy("SystemOrAdmin", policy => policy.RequireRole("Admin", "System"));//或的关系
                 options.AddPolicy("SystemAndAdmin", policy => policy.RequireRole("Admin").RequireRole("System"));//且的关系
+                //基于Claims的策略
+                options.AddPolicy("公司管理", policy => policy.RequireClaim("Companies"));
+                options.AddPolicy("员工管理", policy => policy.RequireClaim("Employees", "daadf852-3406-4fec-828c-c504f69dfa54"));
+                //这样写有点sb，只不过知道可以这样写，但是jwt中不支持这种的claims没有List<string>
+                options.AddPolicy("用户管理", policy => policy.RequireClaim("Users", new List<string> { "a2422c72-fe2c-49d7-9049-a4eaa9375b4a" }.First().ToString()));
                 //
-                options.AddPolicy("EmployeeOnly", policy => policy.RequireClaim("EmployeeNumber"));
-                options.AddPolicy("Founders", policy => policy.RequireClaim("EmployeeNumber", "1", "2", "3", "4", "5"));
-
+                options.AddPolicy("角色管理", policy => policy.RequireAssertion(context =>
+                {
+                    if (context.User.HasClaim(x => x.Type == "Roles" && x.Value == "b36ffe4d-4aaf-4d2b-9907-ec2884eeffb8"))
+                    {
+                        return true;
+                    }
+                    return false;
+                }));
+                //自定义Requirement
+                options.AddPolicy("自定义用户管理", policy => policy.AddRequirements(
+                    //如果有多个Requirement，必须全部满足才能通过
+                    new ClaimsRequirement("Users"),
+                    new ActionRequirement()
+                ));
             });
+
+            services.AddSingleton<IAuthorizationHandler, ClaimsHandler>();
+            services.AddSingleton<IAuthorizationHandler, CanContactHandler>();
+            services.AddSingleton<IAuthorizationHandler, CanAdminHandler>();
             #endregion
 
             #endregion

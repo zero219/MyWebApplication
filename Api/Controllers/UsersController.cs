@@ -13,8 +13,8 @@ using System.Threading.Tasks;
 
 namespace Api.Controllers
 {
-    //[Authorize(AuthenticationSchemes = "Bearer")]
-    //[Authorize(Roles = "ADMIN")]
+    [Authorize(AuthenticationSchemes = "Bearer", Roles = "管理员", Policy = "用户管理")]
+    [Authorize(Policy = "自定义用户管理")]
     [Route("api")]
     [ApiController]
     public class UsersController : ControllerBase
@@ -172,7 +172,62 @@ namespace Api.Controllers
                 {
                     return BadRequest();
                 }
-                return CreatedAtRoute(nameof(UserToRoles), user.Id);
+                var roles = await _userManager.GetRolesAsync(user);
+                return CreatedAtRoute(nameof(UserToRoles), new { user.Id }, roles);
+            }
+            catch (Exception e)
+            {
+                throw new Exception(e.Message);
+            }
+        }
+
+        /// <summary>
+        /// 加载用户是否有claims
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <returns></returns>
+        [HttpGet("users/{userId}/claims", Name = nameof(UserToClaims))]
+        public async Task<IActionResult> UserToClaims([FromRoute] string userId)
+        {
+            //查询当前用户
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return BadRequest();
+            }
+            var claims = await _userManager.GetClaimsAsync(user);
+            return Ok(claims);
+        }
+
+        /// <summary>
+        /// 添加Claims
+        /// </summary>
+        /// <param name="userAddToClaimDto"></param>
+        /// <returns></returns>
+        /// <exception cref="Exception"></exception>
+        [HttpPost("users/claims", Name = nameof(UserAddToClaims))]
+        public async Task<IActionResult> UserAddToClaims([FromBody] UserAddToClaimDto userAddToClaimDto)
+        {
+            try
+            {
+                //查询当前用户
+                var user = await _userManager.FindByIdAsync(userAddToClaimDto.UserId);
+                if (user == null)
+                {
+                    return BadRequest();
+                }
+                foreach (var claim in userAddToClaimDto.ClaimsList)
+                {
+                    var applicationClaim = new ApplicationUserClaim()
+                    {
+                        ClaimType = claim.ClaimType,
+                        ClaimValue = claim.ClaimValue,
+                    };
+                    user.Claims.Add(applicationClaim);
+                    await _userManager.UpdateAsync(user);
+                }
+                var claims = await _userManager.GetClaimsAsync(user);
+                return CreatedAtRoute(nameof(UserToClaims), new { userId = user.Id }, claims);
             }
             catch (Exception e)
             {

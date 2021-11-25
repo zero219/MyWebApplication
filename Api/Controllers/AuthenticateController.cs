@@ -86,6 +86,8 @@ namespace Api.Controllers
             var user = await _userManager.FindByNameAsync(loginDto.UserName);
             //获取角色
             var roles = await _userManager.GetRolesAsync(user);
+            //获取claims
+            var claims = await _userManager.GetClaimsAsync(user);
             //jwt签名
             string secret = _configuration["JwtTokenManagement:Secret"];
             //颁发者
@@ -99,7 +101,7 @@ namespace Api.Controllers
 
             #region payload
             //创建一个身份认证
-            var claims = new List<Claim>
+            var claimsList = new List<Claim>
             {
                 //sub (subject)：主题
                 new Claim(JwtRegisteredClaimNames.Sub,"Jwt验证"),
@@ -117,8 +119,9 @@ namespace Api.Controllers
                 new Claim(JwtRegisteredClaimNames.Aud,audience),
             };
             //多个角色
-            claims.AddRange(roles.Select(x => new Claim(ClaimTypes.Role, x)));
+            claimsList.AddRange(roles.Select(s => new Claim(ClaimTypes.Role, s)));
             //claims.AddRange("Admin,System".Split(',').Select(x => new Claim(ClaimTypes.Role, x)));
+            claimsList.AddRange(claims.Select(s => new Claim(s.Type, s.Value)));
             #endregion
 
             #region signiture
@@ -128,7 +131,7 @@ namespace Api.Controllers
             var creds = new SigningCredentials(key, sig);
             //创建jwtToken
             var jwtToken = new JwtSecurityToken(
-                claims: claims,
+                claims: claimsList,
                 signingCredentials: creds);
             //token转token字符串
             var tokenStr = new JwtSecurityTokenHandler().WriteToken(jwtToken);
@@ -141,7 +144,7 @@ namespace Api.Controllers
         /// 登出
         /// </summary>
         /// <returns></returns>
-        [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "Admin")]
         [HttpGet("logout")]
         public async Task<IActionResult> Logout()
         {

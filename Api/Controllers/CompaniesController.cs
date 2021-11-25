@@ -32,10 +32,9 @@ namespace Api.Controllers
      **/
     [ApiController]
     [Route("api")]
-    [Authorize(AuthenticationSchemes = "Bearer")]
-    [Authorize(Policy = "SystemAndAdmin")]
+    [Authorize(AuthenticationSchemes = "Bearer", Policy = "公司管理")]
     //隐藏某个webapi
-    //[ApiExplorerSettings(IgnoreApi = true)]
+    [ApiExplorerSettings(IgnoreApi = false)]
     public class CompaniesController : ControllerBase
     {
         private readonly ICompanyService _companyService;
@@ -62,7 +61,7 @@ namespace Api.Controllers
             "application/vnd.company.company.full+json",
             "application/vnd.company.company.full.hateoas+json")]
         //ETAG缓存过期模型
-        [HttpCacheExpiration(CacheLocation = CacheLocation.Public, MaxAge = 60)]
+        [HttpCacheExpiration(CacheLocation = CacheLocation.Public, MaxAge = 1)]
         //ETAG缓存验证模型
         [HttpCacheValidation(MustRevalidate = true)]
         public async Task<ActionResult> GetCompanies([FromHeader(Name = "Accept")] string mediaType, [FromQuery] CompanyParameters parameters)
