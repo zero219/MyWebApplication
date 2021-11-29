@@ -312,7 +312,7 @@ namespace Api
 
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env,ILoggerFactory loggerFactory)
         {
             Console.WriteLine("执行顺序Configure");
             if (env.IsDevelopment())
@@ -331,7 +331,7 @@ namespace Api
                     });
                 });
             }
-
+            loggerFactory.AddLog4Net();
             #region Swagger
             //启用Swagger中间件
             app.UseSwagger();

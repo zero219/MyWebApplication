@@ -13,6 +13,10 @@ using Microsoft.AspNetCore.Authorization;
 using Entity.Dtos;
 using Microsoft.AspNetCore.Identity;
 using Entity.Models.IdentityModels;
+using Common.Log4net;
+using Newtonsoft.Json;
+using log4net.Core;
+using Microsoft.Extensions.Logging;
 
 namespace Api.Controllers
 {
