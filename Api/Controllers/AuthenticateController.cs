@@ -34,13 +34,16 @@ namespace Api.Controllers
         /// 用户登录帮助类
         /// </summary>
         private readonly SignInManager<ApplicationUser> _signInManager;
+        private readonly ILogger<AuthenticateController> _logger;
         public AuthenticateController(IConfiguration configuration,
             UserManager<ApplicationUser> userManager,
-            SignInManager<ApplicationUser> signInManager)
+            SignInManager<ApplicationUser> signInManager,
+            ILogger<AuthenticateController> logger)
         {
             _configuration = configuration;
             _userManager = userManager;
             _signInManager = signInManager;
+            _logger = logger;
         }
 
         /// <summary>

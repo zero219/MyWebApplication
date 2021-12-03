@@ -39,6 +39,13 @@ namespace Api
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
+            .ConfigureLogging((hostBuidleContext, loggingBuilder) =>
+            {
+                //过滤掉System和Microsoft开头的命名空间下的组件产生的警告级别一下的日志
+                loggingBuilder.AddFilter("Microsoft", LogLevel.Warning);
+                loggingBuilder.AddFilter("System", LogLevel.Warning);
+                loggingBuilder.AddLog4Net();
+            })
             .UseServiceProviderFactory(new AutofacServiceProviderFactory())//使用Autofac
             .ConfigureServices(services =>
             {

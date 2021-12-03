@@ -9,7 +9,7 @@ namespace Common.Log4net
 {
     public class LogHelper
     {
-        private static ILog logger;
+        private readonly static ILog logger;
         static LogHelper()
         {
             if (logger == null)
