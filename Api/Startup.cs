@@ -304,9 +304,13 @@ namespace Api
             Assembly assemblyBll = AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName("Bll"));
             builder.RegisterTypes(assemblyBll.GetTypes()).AsImplementedInterfaces().InstancePerLifetimeScope();
 
-            //redis»º´æ
-            var section = Configuration.GetSection("Redis:DefaultConnection").Value;
-            builder.Register(x => new RedisHelpers(section, "")).SingleInstance();
+            #region Redis»º´æ×¢Èë
+            var conn = Configuration.GetSection("Redis:DefaultConnection").Value;
+            var instanceName = Configuration.GetSection("Redis:InstanceName").Value;
+            var defaultDB = int.Parse(Configuration.GetSection("Redis:DefaultDB").Value.ToString() ?? "0");
+            builder.Register(x => new RedisCacheManager(conn, instanceName, defaultDB)).As<IRedisCacheManager>().SingleInstance();
+            #endregion
+
         }
         #endregion
 

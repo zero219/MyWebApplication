@@ -17,13 +17,14 @@ using Common.Log4net;
 using Newtonsoft.Json;
 using log4net.Core;
 using Microsoft.Extensions.Logging;
+using Common.Redis;
 
 namespace Api.Controllers
 {
     [Route("api/auth")]
     [ApiController]
 
-    public class AuthenticateController : ControllerBase
+    public class AuthenticateController : CustomBase<AuthenticateController>
     {
         private readonly IConfiguration _configuration;
         /// <summary>
@@ -34,16 +35,16 @@ namespace Api.Controllers
         /// 用户登录帮助类
         /// </summary>
         private readonly SignInManager<ApplicationUser> _signInManager;
-        private readonly ILogger<AuthenticateController> _logger;
+
         public AuthenticateController(IConfiguration configuration,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            ILogger<AuthenticateController> logger)
+            ILogger<AuthenticateController> logger,
+            IRedisCacheManager redisCacheManager) : base(logger, redisCacheManager)
         {
             _configuration = configuration;
             _userManager = userManager;
             _signInManager = signInManager;
-            _logger = logger;
         }
 
         /// <summary>
@@ -155,6 +156,7 @@ namespace Api.Controllers
         [HttpGet("logout")]
         public async Task<IActionResult> Logout()
         {
+            var getKey = _redisCacheManager.GetValue("myKey").Result;
             await _signInManager.SignOutAsync();
             return Ok();
         }
