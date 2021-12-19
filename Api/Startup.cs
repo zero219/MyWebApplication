@@ -286,6 +286,20 @@ namespace Api
             #region 注册AutoMapper
             services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
             #endregion
+
+            #region 注册跨域服务
+            services.AddCors(options =>
+            {
+                options.AddPolicy("any", configure =>
+                {
+                    configure.WithOrigins("http://127.0.0.1", "http://localhost:8080")//允许跨域来源,多个逗号隔开
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    //.AllowAnyOrigin()//允许所有主机来源
+                    .AllowCredentials();
+                });
+            });
+            #endregion
         }
 
         #region Autofac容器
@@ -335,6 +349,10 @@ namespace Api
                     });
                 });
             }
+
+
+
+
             #region Swagger
             //启用Swagger中间件
             app.UseSwagger();
@@ -359,6 +377,11 @@ namespace Api
             #endregion
             //路由中间件
             app.UseRouting();
+
+            #region 跨域中间件
+            app.UseCors("any");
+            #endregion
+
             //认证中间件
             app.UseAuthentication();
             //授权中间件
