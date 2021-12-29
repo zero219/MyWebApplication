@@ -370,28 +370,28 @@ namespace Entity.Data
             {
                 Id = 1,
                 ClaimType = "Companies",
-                ClaimValue = "dadfaa82-428f-4495-8603-8bcee2e9bfdc",
+                ClaimValue = "公司列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
             },
             new ApplicationUserClaim
             {
                 Id = 2,
                 ClaimType = "Employees",
-                ClaimValue = "daadf852-3406-4fec-828c-c504f69dfa54",
+                ClaimValue = "员工列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
             },
             new ApplicationUserClaim
             {
                 Id = 3,
                 ClaimType = "Users",
-                ClaimValue = "a2422c72-fe2c-49d7-9049-a4eaa9375b4a",
+                ClaimValue = "用户列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
             },
             new ApplicationUserClaim
             {
                 Id = 4,
                 ClaimType = "Roles",
-                ClaimValue = "b36ffe4d-4aaf-4d2b-9907-ec2884eeffb8",
+                ClaimValue = "角色列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
             });
             #endregion
@@ -402,6 +402,37 @@ namespace Entity.Data
             {
                 RoleId = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654"
+            });
+            #endregion
+
+            #region ApplicationUserRole
+            modelBuilder.Entity<ApplicationRoleClaim>().HasData(new ApplicationRoleClaim
+            {
+                Id = 1,
+                RoleId = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
+                ClaimType = "Companies",
+                ClaimValue = "公司列表"
+            },
+            new ApplicationRoleClaim
+            {
+                Id = 2,
+                RoleId = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
+                ClaimType = "Employees",
+                ClaimValue = "员工列表"
+            },
+            new ApplicationRoleClaim
+            {
+                Id = 3,
+                RoleId = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
+                ClaimType = "Users",
+                ClaimValue = "用户列表"
+            },
+            new ApplicationRoleClaim
+            {
+                Id = 4,
+                RoleId = "cd2fd2f8-c589-49c4-9159-bc470ae66c8d",
+                ClaimType = "Roles",
+                ClaimValue = "角色列表"
             });
             #endregion
 

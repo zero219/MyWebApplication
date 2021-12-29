@@ -36,15 +36,18 @@ namespace Api.Controllers
         /// </summary>
         private readonly SignInManager<ApplicationUser> _signInManager;
 
+        private readonly RoleManager<ApplicationRole> _roleManager;
         public AuthenticateController(IConfiguration configuration,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
+            RoleManager<ApplicationRole> roleManager,
             ILogger<AuthenticateController> logger,
             IRedisCacheManager redisCacheManager) : base(logger, redisCacheManager)
         {
             _configuration = configuration;
             _userManager = userManager;
             _signInManager = signInManager;
+            _roleManager = roleManager;
         }
 
         /// <summary>
@@ -80,22 +83,16 @@ namespace Api.Controllers
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
         {
             var loginResult = await _signInManager.PasswordSignInAsync(
-              loginDto.UserName,
-              loginDto.PassWord,
-              false,//是否保存cookie
-              false//3次是否锁定
-           );
+            loginDto.UserName,
+            loginDto.PassWord,
+            false,//是否保存cookie
+            false//3次是否锁定
+            );
             //判断登录
             if (!loginResult.Succeeded)
             {
                 return BadRequest();
             }
-            //获取用户
-            var user = await _userManager.FindByNameAsync(loginDto.UserName);
-            //获取角色
-            var roles = await _userManager.GetRolesAsync(user);
-            //获取claims
-            var claims = await _userManager.GetClaimsAsync(user);
             //jwt签名
             string secret = _configuration["JwtTokenManagement:Secret"];
             //颁发者
@@ -126,10 +123,27 @@ namespace Api.Controllers
                 //aud (audience)：受众,接收jwt的一方
                 new Claim(JwtRegisteredClaimNames.Aud,audience),
             };
+            //获取用户
+            var user = await _userManager.FindByNameAsync(loginDto.UserName);
+            //获取角色
+            var roles = await _userManager.GetRolesAsync(user);
             //多个角色
             claimsList.AddRange(roles.Select(s => new Claim(ClaimTypes.Role, s)));
+            List<Claim> claims = new List<Claim>();
+            //获取用户的claims
+            var userClaims = await _userManager.GetClaimsAsync(user);
+            //获取角色的claims
+            claims.AddRange(userClaims);
+            foreach (var role in roles)
+            {
+                var applicationRole = _roleManager.Roles.Where(x => x.Name == role).FirstOrDefault();
+                var roleClaims = await _roleManager.GetClaimsAsync(applicationRole);
+                claims.AddRange(roleClaims);
+            }
+            var distinctClaims = claims.Where((x, i) => claims.FindIndex(f => f.Type == x.Type && f.Value == x.Value) == i).ToList();
+            claimsList.AddRange(distinctClaims);
             //claims.AddRange("Admin,System".Split(',').Select(x => new Claim(ClaimTypes.Role, x)));
-            claimsList.AddRange(claims.Select(s => new Claim(s.Type, s.Value)));
+
             #endregion
 
             #region signiture
