@@ -33,3 +33,4 @@ redis-server --service-uninstall --service-name Redis
 redis-server --service-uninstall --service-name Redis6380
 
 # Redis可视化客户端下载
+https://github.com/uglide/RedisDesktopManager/releases/tag/0.9.3

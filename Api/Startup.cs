@@ -201,14 +201,14 @@ namespace Api
                 options.AddPolicy("SystemOrAdmin", policy => policy.RequireRole("Admin", "System"));//或的关系
                 options.AddPolicy("SystemAndAdmin", policy => policy.RequireRole("Admin").RequireRole("System"));//且的关系
                 //基于Claims的策略
-                options.AddPolicy("公司管理", policy => policy.RequireClaim("Companies"));
-                options.AddPolicy("员工管理", policy => policy.RequireClaim("Employees", "daadf852-3406-4fec-828c-c504f69dfa54"));
+                options.AddPolicy("公司管理", policy => policy.RequireClaim("公司列表"));
+                options.AddPolicy("员工管理", policy => policy.RequireClaim("Employees", "员工列表"));
                 //这样写有点sb，只不过知道可以这样写，但是jwt中不支持这种的claims没有List<string>
-                options.AddPolicy("用户管理", policy => policy.RequireClaim("Users", new List<string> { "a2422c72-fe2c-49d7-9049-a4eaa9375b4a" }.First().ToString()));
+                options.AddPolicy("用户管理", policy => policy.RequireClaim("Users", new List<string> { "用户列表" }.First().ToString()));
                 //
                 options.AddPolicy("角色管理", policy => policy.RequireAssertion(context =>
                 {
-                    if (context.User.HasClaim(x => x.Type == "Roles" && x.Value == "b36ffe4d-4aaf-4d2b-9907-ec2884eeffb8"))
+                    if (context.User.HasClaim(x => x.Type == "Roles" && x.Value == "角色列表"))
                     {
                         return true;
                     }
