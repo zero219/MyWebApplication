@@ -170,7 +170,6 @@ namespace Api.Controllers
         [HttpGet("logout")]
         public async Task<IActionResult> Logout()
         {
-            var getKey = _redisCacheManager.GetValue("myKey").Result;
             await _signInManager.SignOutAsync();
             return Ok();
         }

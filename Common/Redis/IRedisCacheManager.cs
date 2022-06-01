@@ -6,15 +6,24 @@ using System.Threading.Tasks;
 
 namespace Common.Redis
 {
-    public interface IRedisCacheManager 
+    public interface IRedisCacheManager
     {
         IDatabase GetRedisData();
-        Task<string> GetValue(string key);
-        Task Set(string key, object value, TimeSpan cacheTime);
+        string Get(string key);
 
-        Task<bool> Exist(string key);
+        Task<string> GetAsync(string key);
 
-        Task Remove(string key);
+        void Set(string key, string value,TimeSpan cacheTime); 
+
+        Task SetAsync(string key, string value, TimeSpan cacheTime);
+
+        bool Exist(string key);
+
+        Task<bool> ExistAsync(string key);
+
+        bool Delete(string key);    
+
+        Task<bool> DeleteAsync(string key);
 
         void Dispose();
     }
