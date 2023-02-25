@@ -13,9 +13,9 @@ namespace Common.Redis
 
         Task<string> GetAsync(string key);
 
-        void Set(string key, string value,TimeSpan cacheTime); 
+        bool Set(string key, string value,TimeSpan cacheTime);
 
-        Task SetAsync(string key, string value, TimeSpan cacheTime);
+        Task<bool> SetAsync(string key, string value, TimeSpan cacheTime);
 
         bool Exist(string key);
 
@@ -26,5 +26,11 @@ namespace Common.Redis
         Task<bool> DeleteAsync(string key);
 
         void Dispose();
+
+        T CachePenetration<T, ID>(string keyPrefix, T type, ID id, Func<ID, T> func, TimeSpan timeSpan);
+
+        T CacheBreakdownLock<T, ID>(string keyPrefix, T type, ID id, Func<ID, T> func, TimeSpan timeSpan);
+
+        T CacheBreakdownTimeSpan<T, ID>(string keyPrefix, T type, ID id, Func<ID, T> func, TimeSpan timeSpan);
     }
 }

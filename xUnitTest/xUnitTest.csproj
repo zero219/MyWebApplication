@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Common\Common.csproj" />
+    <ProjectReference Include="..\IBll\IBll.csproj" />
   </ItemGroup>
 
 </Project>

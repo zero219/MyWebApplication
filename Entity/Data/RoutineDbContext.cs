@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Entity.Models.IdentityModels;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace Entity.Data
 {
@@ -14,6 +15,7 @@ namespace Entity.Data
         ApplicationRoleClaim, ApplicationUserToken>
     {
 
+        public bool UseIntProperty { get; set; }
 
         public RoutineDbContext(DbContextOptions<RoutineDbContext> options) : base(options)
         {
@@ -24,6 +26,10 @@ namespace Entity.Data
         public DbSet<Company> Companies { get; set; }
         public DbSet<Employee> Employees { get; set; }
 
+        //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) 
+        //    => optionsBuilder
+        //    .UseInMemoryDatabase("RoutineDbContext")
+        //    .ReplaceService<IModelCacheKeyFactory, RoutineModelCacheKeyFactory>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -74,23 +80,23 @@ namespace Entity.Data
                Industry = "Internet",
                Product = "Software"
            },
-          new Company
-          {
-              Id = Guid.Parse("bd65e1ce-2c82-497f-ad51-25332adbe0c2"),
-              Name = "Alibaba",
-              Introduction = "Fubao Company",
-              Country = "China",
-              Industry = "Internet",
-              Product = "Software"
-          }, new Company
-          {
-              Id = Guid.Parse("bbdee09c-089b-4d30-bece-44df59237100"),
-              Name = "Tencent",
-              Introduction = "From Shenzhen",
-              Country = "China",
-              Industry = "ECommerce",
-              Product = "Software"
-          },
+           new Company
+           {
+               Id = Guid.Parse("bd65e1ce-2c82-497f-ad51-25332adbe0c2"),
+               Name = "Alibaba",
+               Introduction = "Fubao Company",
+               Country = "China",
+               Industry = "Internet",
+               Product = "Software"
+           }, new Company
+           {
+               Id = Guid.Parse("bbdee09c-089b-4d30-bece-44df59237100"),
+               Name = "Tencent",
+               Introduction = "From Shenzhen",
+               Country = "China",
+               Industry = "ECommerce",
+               Product = "Software"
+           },
            new Company
            {
                Id = Guid.Parse("6fb600c1-9011-4fd7-9234-881379716400"),
@@ -369,6 +375,8 @@ namespace Entity.Data
             modelBuilder.Entity<ApplicationUserClaim>().HasData(new ApplicationUserClaim
             {
                 Id = 1,
+                ParentClaimId = 3,
+                ParentClaim = "员工管理",
                 ClaimType = "Companies",
                 ClaimValue = "公司列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
@@ -376,6 +384,8 @@ namespace Entity.Data
             new ApplicationUserClaim
             {
                 Id = 2,
+                ParentClaimId = 3,
+                ParentClaim = "员工管理",
                 ClaimType = "Employees",
                 ClaimValue = "员工列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
@@ -383,6 +393,8 @@ namespace Entity.Data
             new ApplicationUserClaim
             {
                 Id = 3,
+                ParentClaimId = 1,
+                ParentClaim = "用户管理",
                 ClaimType = "Users",
                 ClaimValue = "用户列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
@@ -390,6 +402,8 @@ namespace Entity.Data
             new ApplicationUserClaim
             {
                 Id = 4,
+                ParentClaimId = 2,
+                ParentClaim = "角色管理",
                 ClaimType = "Roles",
                 ClaimValue = "角色列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
