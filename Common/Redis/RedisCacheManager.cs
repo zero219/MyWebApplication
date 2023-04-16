@@ -127,6 +127,26 @@ namespace Common.Redis
         }
 
         /// <summary>
+        /// 判断key是否存在，不存在就创建
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="cacheTime"></param>
+        /// <returns></returns>
+        public bool SetNx(string key, string value, TimeSpan cacheTime = default(TimeSpan))
+        {
+            if (cacheTime == default(TimeSpan))
+            {
+                cacheTime = defaultTimeSpan;
+            }
+            if (value != null)
+            {
+                return GetRedisData().StringSet(DataKey(key), value, cacheTime, When.NotExists, CommandFlags.None);
+            }
+            return false;
+        }
+
+        /// <summary>
         /// 判断是否存在
         /// </summary>
         /// <param name="key"></param>
@@ -166,6 +186,122 @@ namespace Common.Redis
         {
             return await GetRedisData().KeyDeleteAsync(DataKey(key));
         }
+
+        #region redis5.0 Stream队列
+
+        /* position:
+         *          '0-0'表示从头开始读取;
+         *          '>'读取最新，未被消费的消息;
+         *          '$' 表示使用者组将只读取在创建使用者组之后创建的消息
+         * 
+         * 
+         */
+
+
+        /// <summary>
+        /// 创建单消费队列
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="filed"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public string StreamAdd(string key, string filed, string value)
+        {
+            var result = GetRedisData().StreamAdd(DataKey(key), filed, value);
+            return result;
+        }
+
+        /// <summary>
+        /// 单个消息读取
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="position"></param>
+        /// <returns></returns>
+        public StreamEntry[] StreamRead(string key, string position)
+        {
+            var result = GetRedisData().StreamRead(DataKey(key), position);
+            return result;
+        }
+
+        /// <summary>
+        /// 创建消费组
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="nameGroup"></param>
+        /// <param name="position">0-0'表示从头开始读取;'>'读取最新，未被消费的消息;'$' 表示使用者组将只读取在创建使用者组之后创建的消息</param>
+        /// <returns></returns>
+        public bool StreamCreateConsumerGroup(string key, string nameGroup, string position)
+        {
+            var result = GetRedisData().StreamCreateConsumerGroup(DataKey(key), nameGroup, position);
+            return result;
+        }
+
+        /// <summary>
+        /// 判断组是否存在
+        /// </summary>
+        /// <param name="nameGroup"></param>
+        /// <param name="position"></param>
+        /// <returns></returns>
+        public StreamGroupInfo[] StreamGroupInfo(string key)
+        {
+            var result = GetRedisData().StreamGroupInfo(DataKey(key));
+            return result;
+        }
+        /// <summary>
+        /// 通过组取里面的消息
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="nameGroup"></param>
+        /// <param name="consumer"></param>
+        /// <param name="position"></param>
+        /// <param name="count"></param>
+        /// <returns></returns>
+        public StreamEntry[] StreamReadGroup(string key, string nameGroup, string consumer, string position, int count = 1)
+        {
+            var result = GetRedisData().StreamReadGroup(DataKey(key), nameGroup, consumer, position, count);
+            return result;
+        }
+
+        /// <summary>
+        /// 消息确认
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="nameGroup"></param>
+        /// <param name="messageId"></param>
+        /// <returns></returns>
+        public long StreamAcknowledge(string key, string nameGroup, string messageId)
+        {
+            var result = GetRedisData().StreamAcknowledge(DataKey(key), nameGroup, messageId);
+            return result;
+        }
+
+        /// <summary>
+        /// 返回有关待处理消息数
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="nameGroup"></param>
+        /// <returns></returns>
+        public StreamPendingInfo StreamPending(string key, string nameGroup)
+        {
+            var result = GetRedisData().StreamPending(DataKey(key), nameGroup);
+            return result;
+        }
+
+        /// <summary>
+        /// 待处理消息的详细信息
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="nameGroup"></param>
+        /// <param name="consumer"></param>
+        /// <param name="minId"></param>
+        /// <param name="count"></param>
+        /// <returns></returns>
+        public StreamPendingMessageInfo[] StreamPendingMessages(string key, string nameGroup, string consumer, string minId, int count = 100)
+        {
+            var result = GetRedisData().StreamPendingMessages(DataKey(key), nameGroup, count, consumer, minId: minId);
+            return result;
+        }
+        #endregion
 
         /// <summary>
         /// 释放资源
@@ -364,6 +500,51 @@ namespace Common.Redis
             return t;
         }
 
+        #endregion
+
+        #region 自增唯一id
+        /// <summary>
+        /// 开始时间戳
+        /// </summary>
+        private readonly long BeginTimestamp = 1672502400L;
+        /// <summary>
+        /// 序列号位数
+        /// </summary>
+        private readonly int CountBits = 32;
+
+        /// <summary>
+        /// 生成唯一id
+        /// </summary>
+        /// <param name="keyPrefix"></param>
+        /// <returns></returns>
+        public long NextId(string keyPrefix)
+        {
+            //生成时间戳
+            long nowTime = (DateTime.Now.ToUniversalTime().Ticks - 621355968000000000) / 10000000;
+            long timeStamp = nowTime - BeginTimestamp;
+            // 获取日期
+            string date = DateTime.Now.ToString("yyyy:MM:dd");
+            // 自增长
+            long count = GetRedisData().StringIncrement(DataKey("icr:") + keyPrefix + ":" + date);
+            return timeStamp << CountBits | count;
+        }
+
+        #endregion
+
+        #region lua脚本
+
+        public RedisResult LuaScripts(string str, object obj)
+        {
+            var result = GetRedisData().ScriptEvaluate(LuaScript.Prepare(str), obj);
+            return result;
+        }
+
+        public RedisResult Execute(string str, object[] obj)
+        {
+            var result = GetRedisData().Execute(str, obj);
+            return result;
+        }
+        
         #endregion
     }
     public class RedisData

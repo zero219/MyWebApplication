@@ -62,9 +62,9 @@ namespace Dal
         {
             //修改全部属性
             return Task.Run(() =>
-           {
-               _context.Entry(entity).State = EntityState.Modified;
-           });
+            {
+                _context.Entry(entity).State = EntityState.Modified;
+            });
         }
 
         /// <summary>
@@ -84,9 +84,9 @@ namespace Dal
         public Task DeleteAsync(TEntity entity)
         {
             return Task.Run(() =>
-          {
-              _context.Entry<TEntity>(entity).State = EntityState.Deleted;
-          });
+            {
+                _context.Entry<TEntity>(entity).State = EntityState.Deleted;
+            });
         }
 
         /// <summary>
@@ -107,13 +107,13 @@ namespace Dal
         public Task<IQueryable<TEntity>> GetAllAsync(string str)
         {
             return string.IsNullOrEmpty(str) ? (Task<IQueryable<TEntity>>)Task.Run(() =>
-          {
-              _context.Set<TEntity>().AsQueryable();
-          }) : (Task<IQueryable<TEntity>>)Task.Run(() =>
-          {
-              _context.Set<TEntity>().Include(str).AsQueryable();
+            {
+                _context.Set<TEntity>().AsQueryable();
+            }) : (Task<IQueryable<TEntity>>)Task.Run(() =>
+            {
+                _context.Set<TEntity>().Include(str).AsQueryable();
 
-          });
+            });
         }
 
         /// <summary>
@@ -134,9 +134,19 @@ namespace Dal
         public Task<IQueryable<TEntity>> GetByWhereAsync(Expression<Func<TEntity, bool>> where)
         {
             return (Task<IQueryable<TEntity>>)Task.Run(() =>
-          {
-              _context.Set<TEntity>().Where<TEntity>(where).AsQueryable();
-          });
+            {
+                _context.Set<TEntity>().Where<TEntity>(where).AsQueryable();
+            });
+        }
+
+        /// <summary>
+        /// 条件查询(异步),转对象
+        /// </summary>
+        /// <param name="where"></param>
+        /// <returns></returns>
+        public async Task<TEntity> GetByWhereFirstOrDefaultAsync(Expression<Func<TEntity, bool>> where)
+        {
+            return await _context.Set<TEntity>().Where(where).FirstOrDefaultAsync();
         }
 
         /// <summary>
@@ -148,7 +158,9 @@ namespace Dal
         /// <param name="orderBy"></param>
         /// <param name="keyValuePairs"></param>
         /// <returns></returns>
-        public async Task<PageList<TEntity>> GetPageOrderByQuery(int pageNumber, int pageSize, Expression<Func<TEntity, bool>> whereLambda, string orderBy, Dictionary<string, PropertyMappingValue> keyValuePairs)
+        public async Task<PageList<TEntity>> GetPageOrderByQuery(int pageNumber, int pageSize,
+            Expression<Func<TEntity, bool>> whereLambda, string orderBy,
+            Dictionary<string, PropertyMappingValue> keyValuePairs)
         {
             IQueryable<TEntity> queryable;
 
@@ -175,6 +187,65 @@ namespace Dal
             return new PageList<TEntity>(rows, count, pageNumber, pageSize);
         }
 
+        /// <summary>
+        /// 事务
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="t"></param>
+        /// <param name="func"></param>
+        /// <returns></returns>
+        public T TransactionDo<T>(T t, Func<T, T> func)
+        {
+            T result = default(T);
+
+            try
+            {
+                _context.Database.BeginTransaction();
+                result = func(t);
+                _context.SaveChanges();
+                _context.Database.CommitTransaction();
+            }
+            catch (Exception ex)
+            {
+                _context.Database.RollbackTransaction();
+                throw ex;
+            }
+            finally
+            {
+              
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// 异步事务
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="t"></param>
+        /// <param name="func"></param>
+        /// <returns></returns>
+        public async Task<T> TransactionDoAsync<T>(T t, Func<T, Task<T>> func)
+        {
+            T result = default(T);
+
+            try
+            {
+                await _context.Database.BeginTransactionAsync();
+                result = await func(t);
+                await _context.SaveChangesAsync();
+                await _context.Database.CommitTransactionAsync();
+            }
+            catch (Exception ex)
+            {
+                await _context.Database.RollbackTransactionAsync();
+                throw ex;
+            }
+            finally
+            {
+               
+            }
+            return result;
+        }
         /// <summary>
         /// 保存
         /// </summary>

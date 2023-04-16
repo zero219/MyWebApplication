@@ -31,16 +31,17 @@ using Entity.Models.IdentityModels;
 using Microsoft.AspNetCore.Identity;
 using Common.IdentityAuth;
 using Microsoft.AspNetCore.Authorization;
+using Bll;
 
 namespace Api
 {
-    public class Startup
+    public class Startup 
     {
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
         }
-
+       
         public string ApiName { get; set; } = "RESTfull";
         public IConfiguration Configuration { get; }
 
@@ -228,6 +229,10 @@ namespace Api
             #endregion
 
             #endregion
+
+            // 启动一个异步线程执行永久任务
+            //services.AddHostedService<SeckillVoucherService>();
+            services.AddHostedService<BackgroundServiceStart>();
 
             #region 注册Swagger
             services.AddSwaggerGen(c =>

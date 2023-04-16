@@ -1,4 +1,5 @@
 ﻿using Common.Helpers;
+using Entity.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace IDal
 {
-    public interface IBaseRepository<TEntity>  where TEntity : class, new()
+    public interface IBaseRepository<TEntity> where TEntity : class, new()
     {
         TEntity Create(TEntity entity);
 
@@ -29,6 +30,12 @@ namespace IDal
         IQueryable<TEntity> GetByWhere(Expression<Func<TEntity, bool>> where);
 
         Task<IQueryable<TEntity>> GetByWhereAsync(Expression<Func<TEntity, bool>> where);
+
+        Task<TEntity> GetByWhereFirstOrDefaultAsync(Expression<Func<TEntity, bool>> where);
+
+        T TransactionDo<T>(T t, Func<T, T> func);
+
+        Task<T> TransactionDoAsync<T>(T t, Func<T, Task<T>> func);
 
         public Task<PageList<TEntity>> GetPageOrderByQuery(int pageNumber, int pageSize, Expression<Func<TEntity, bool>> whereLambda, string orderBy, Dictionary<string, PropertyMappingValue> keyValuePairs);
 

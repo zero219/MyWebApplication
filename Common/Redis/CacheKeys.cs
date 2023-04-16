@@ -6,6 +6,8 @@ namespace Common.Redis
 {
     public class CacheKeys
     {
+        public const string REDIS_DATA_KEY = "MyRedis";
+
         public const string MY_KEY = "myKey";
 
         public const string LOCK_KEY = "lock";

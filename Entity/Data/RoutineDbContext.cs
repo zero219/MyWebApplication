@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Entity.Models.IdentityModels;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Entity.Models.Seckill;
+using Entity.DataEntityType;
 
 namespace Entity.Data
 {
@@ -25,6 +27,10 @@ namespace Entity.Data
 
         public DbSet<Company> Companies { get; set; }
         public DbSet<Employee> Employees { get; set; }
+
+        public DbSet<Voucher> Vouchers { get; set; }
+        public DbSet<SeckillVoucher> SeckillVouchers { get; set; }
+        public DbSet<VoucherOrder> VoucherOrders { get; set; }
 
         //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) 
         //    => optionsBuilder
@@ -459,6 +465,15 @@ namespace Entity.Data
             modelBuilder.Entity<ApplicationUserRole>().ToTable("ApplicationUserRoles");
             modelBuilder.Entity<ApplicationRole>().ToTable("ApplicationRoles");
             modelBuilder.Entity<ApplicationRoleClaim>().ToTable("ApplicationRoleClaims");
+            #endregion
+
+
+            #region 优惠券秒杀
+
+            new VoucherEntityType().Configure(modelBuilder.Entity<Voucher>());
+            new SeckillVoucherEntityType().Configure(modelBuilder.Entity<SeckillVoucher>());
+            new VoucherOrderEntityType().Configure(modelBuilder.Entity<VoucherOrder>());
+
             #endregion
         }
     }

@@ -11,6 +11,8 @@ using Entity.Models;
 using System.Linq;
 using Entity.Dtos;
 using AutoMapper;
+using Entity.Dtos.SeckillVoucherDto;
+using System.Threading;
 
 namespace Api.Controllers
 {
@@ -19,11 +21,16 @@ namespace Api.Controllers
     public class RedisController : CustomBase<RedisController>
     {
         private readonly ICompanyService _companyService;
+        private readonly ISeckillVoucherService _seckillVoucherService;
         private readonly IMapper _mapper;
         public RedisController(ILogger<RedisController> logger,
-            IRedisCacheManager redisCacheManager, ICompanyService companyService, IMapper mapper) : base(logger, redisCacheManager)
+            IRedisCacheManager redisCacheManager,
+            ICompanyService companyService,
+            ISeckillVoucherService seckillVoucherService,
+            IMapper mapper) : base(logger, redisCacheManager)
         {
             _companyService = companyService ?? throw new ArgumentNullException(nameof(companyService));
+            _seckillVoucherService = seckillVoucherService ?? throw new ArgumentNullException(nameof(seckillVoucherService));
             _mapper = mapper;
         }
         /// <summary>
@@ -117,6 +124,18 @@ namespace Api.Controllers
             {
                 return Ok("您输入的信息有误");
             }
+            return Ok(result);
+        }
+
+        /// <summary>
+        ///  秒杀优惠券
+        /// </summary>
+        /// <param name="seckillVoucherDto"></param>
+        /// <returns></returns>
+        [HttpPost("seckill")]
+        public async Task<IActionResult> Seckill([FromBody] SeckillVoucherDto seckillVoucherDto)
+        {
+            var result = await _seckillVoucherService.SeckillVoucherStreamAsync(seckillVoucherDto.VoucherId, seckillVoucherDto.UserId);
             return Ok(result);
         }
     }
