@@ -27,11 +27,34 @@ namespace Common.Redis
 
         Task<bool> DeleteAsync(string key);
 
+        Task<bool> SetContainsAsync(string key, string value);
+
+        Task<bool> SetAddAsync(string key, string value);
+
+        Task<bool> SetRemoveAsync(string key, string value);
+
+        Task<RedisValue[]> SetCombineAsync(int num, string first, string second);
+
+        Task<double?> SortedSetScoreAsync(string key, string member);
+
+        Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(string key, long start, long stop);
+
+        Task<bool> SortedSetAddAsync(string key, string member, double score);
+
+        Task<bool> SortedSetRemoveAsync(string key, string member);
+
+        Task<long> GeoAddAsync(string key, GeoEntry[] entry);
+
+        Task<double?> GeoDistanceAsync(string key, string num1, string num2);
+
+        Task<GeoPosition?[]> GeoHashAsync(string key, RedisValue[] redisValues);
+
         string StreamAdd(string key, string filed, string value);
 
         StreamEntry[] StreamRead(string key, string position);
 
         bool StreamCreateConsumerGroup(string key, string nameGroup, string position);
+
         StreamGroupInfo[] StreamGroupInfo(string key);
 
         StreamEntry[] StreamReadGroup(string key, string nameGroup, string consumer, string position, int count = 1);

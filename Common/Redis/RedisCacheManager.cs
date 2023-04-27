@@ -187,6 +187,158 @@ namespace Common.Redis
             return await GetRedisData().KeyDeleteAsync(DataKey(key));
         }
 
+        #region set集合
+        /// <summary>
+        /// 查询
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public async Task<bool> SetContainsAsync(string key, string value)
+        {
+            return await GetRedisData().SetContainsAsync(DataKey(key), value);
+        }
+        /// <summary>
+        /// 添加
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public async Task<bool> SetAddAsync(string key, string value)
+        {
+            return await GetRedisData().SetAddAsync(DataKey(key), value);
+        }
+        /// <summary>
+        /// 移除
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public async Task<bool> SetRemoveAsync(string key, string value)
+        {
+            return await GetRedisData().SetRemoveAsync(DataKey(key), value);
+        }
+
+        /// <summary>
+        /// 求并集、交集、差集
+        /// </summary>
+        /// <param name="first"></param>
+        /// <param name="second"></param>
+        /// <returns></returns>
+        public async Task<RedisValue[]> SetCombineAsync(int num, string first, string second)
+        {
+            // SetOperation.Union 并集
+            // SetOperation.Intersect 交集
+            // SetOperation.Difference 差集
+            RedisValue[] result;
+            switch (num)
+            {
+                case 1:
+                    result = await GetRedisData().SetCombineAsync(SetOperation.Intersect, DataKey(first), DataKey(second));
+                    break;
+                case 2:
+                    result = await GetRedisData().SetCombineAsync(SetOperation.Difference, DataKey(first), DataKey(second));
+                    break;
+                default:
+                    result = await GetRedisData().SetCombineAsync(SetOperation.Union, DataKey(first), DataKey(second));
+                    break;
+            }
+            return result;
+        }
+        #endregion
+
+        #region SortedSet
+        /// <summary>
+        /// SortedSet是否存在
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="member"></param>
+        /// <returns></returns>
+        public async Task<double?> SortedSetScoreAsync(string key, string member)
+        {
+            return await GetRedisData().SortedSetScoreAsync(DataKey(key), member);
+        }
+        /// <summary>
+        /// 获取范围数据，索引0开始
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="start"></param>
+        /// <param name="stop"></param>
+        /// <returns></returns>
+        public async Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(string key, long start, long stop)
+        {
+            return await GetRedisData().SortedSetRangeByRankWithScoresAsync(DataKey(key), start, stop);
+        }
+        /// <summary>
+        /// 添加
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="member"></param>
+        /// <param name="score"></param>
+        /// <returns></returns>
+        public async Task<bool> SortedSetAddAsync(string key, string member, double score)
+        {
+            return await GetRedisData().SortedSetAddAsync(DataKey(key), member, score);
+        }
+        /// <summary>
+        /// 删除
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="member"></param>
+        /// <returns></returns>
+        public async Task<bool> SortedSetRemoveAsync(string key, string member)
+        {
+            return await GetRedisData().SortedSetRemoveAsync(DataKey(key), member);
+        }
+        #endregion
+
+        #region GEO
+        /// <summary>
+        /// 添加
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="entry">GPS经度、纬度、值</param>
+        /// <returns></returns>
+        public async Task<long> GeoAddAsync(string key, GeoEntry[] entry)
+        {
+            return await GetRedisData().GeoAddAsync(DataKey(key), entry);
+        }
+        /// <summary>
+        ///  计算两个点的距离
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="num1"></param>
+        /// <param name="num2"></param>
+        /// <returns></returns>
+        public async Task<double?> GeoDistanceAsync(string key, string num1, string num2)
+        {
+            return await GetRedisData().GeoDistanceAsync(DataKey(key), num1, num2,GeoUnit.Kilometers);
+        }
+
+        /// <summary>
+        /// 返回指定member的坐标
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="redisValues"></param>
+        /// <returns></returns>
+        public async Task<GeoPosition?[]> GeoHashAsync(string key, RedisValue[] redisValues)
+        {
+            return await GetRedisData().GeoPositionAsync(DataKey(key), redisValues);
+        }
+
+        #endregion
+
+        #region BitMap
+
+        #endregion
+
+        #region HyperLogLog
+        public async Task<bool> HyperLogLogAddAsync(string key, string value)
+        {
+            return await GetRedisData().HyperLogLogAddAsync(DataKey(key), value);
+        }
+        #endregion
+
         #region redis5.0 Stream队列
 
         /* position:
@@ -544,9 +696,11 @@ namespace Common.Redis
             var result = GetRedisData().Execute(str, obj);
             return result;
         }
-        
+
         #endregion
     }
+
+
     public class RedisData
     {
         public object obj { get; set; }

@@ -13,6 +13,7 @@ using Entity.Dtos;
 using AutoMapper;
 using Entity.Dtos.SeckillVoucherDto;
 using System.Threading;
+using StackExchange.Redis;
 
 namespace Api.Controllers
 {
@@ -136,6 +137,100 @@ namespace Api.Controllers
         public async Task<IActionResult> Seckill([FromBody] SeckillVoucherDto seckillVoucherDto)
         {
             var result = await _seckillVoucherService.SeckillVoucherStreamAsync(seckillVoucherDto.VoucherId, seckillVoucherDto.UserId);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 点赞
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpGet("isLike")]
+        public async Task<IActionResult> IsLike([FromQuery] long id)
+        {
+            var result = string.Empty;
+            var key = string.Format("{0}:{1}", CacheKeys.ISLIKE_KEY, "blog");
+            var flag = await _redisCacheManager.SortedSetScoreAsync(key, id.ToString());
+            if (flag == null)
+            {
+                // 数据点赞库数量+1
+                result = await _redisCacheManager.SortedSetAddAsync(key, id.ToString(), double.Parse(DateTime.Now.ToString("yyyyMMddHHmmsss"))) ? "点赞成功" : "点赞失败";
+            }
+            else
+            {
+                // 数据点赞库数量-1
+                result = await _redisCacheManager.SortedSetRemoveAsync(key, id.ToString()) ? "取消点赞成功" : "取消点赞失败";
+
+            }
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 获取点赞的前五
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("isLikeTop")]
+        public async Task<IActionResult> IsLikeTop()
+        {
+            var key = string.Format("{0}:{1}", CacheKeys.ISLIKE_KEY, "blog");
+            var arr = await _redisCacheManager.SortedSetRangeByRankWithScoresAsync(key, 0, 5);
+            return Ok(arr);
+        }
+
+        /// <summary>
+        /// 关注
+        /// </summary>
+        /// <param name="followUserId"></param>
+        /// <param name="isFollow"></param>
+        /// <returns></returns>
+        [HttpGet("isFollow")]
+        public async Task<IActionResult> IsFollow([FromQuery] long followUserId, [FromQuery] bool isFollow)
+        {
+            var result = string.Empty;
+            var key = string.Format("{0}:{1}", CacheKeys.FOLLOWS_KEY, "jerry");
+            if (isFollow)
+            {
+                // 数据点赞库数量+1
+                result = await _redisCacheManager.SetAddAsync(key, followUserId.ToString()) ? "关注成功" : "您已成功关注,不需要再重复关注了";
+            }
+            else
+            {
+                // 数据点赞库数量-1
+                result = await _redisCacheManager.SetRemoveAsync(key, followUserId.ToString()) ? "取消关注成功" : "您已取消了关注";
+
+            }
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 共同关注
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("ofUser")]
+        public async Task<IActionResult> OfUser()
+        {
+            var first = string.Format("{0}:{1}", CacheKeys.FOLLOWS_KEY, "tom");
+            var second = string.Format("{0}:{1}", CacheKeys.FOLLOWS_KEY, "jerry");
+            var result = await _redisCacheManager.SetCombineAsync(2, first, second);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 距离
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("geoLocation")]
+        public async Task<IActionResult> GeoLocation()
+        {
+            // 美食
+            var delicacyKey = string.Format("{0}:{1}", CacheKeys.GEO_KEY, "delicacy");
+            GeoEntry[] geoEntriesDelicacy = {
+                 new GeoEntry(116.3474879, 39.9432725, "beijing"),
+                 new GeoEntry(114.054555, 22.546327,"shenzhen")
+            };
+            var delicacy = await _redisCacheManager.GeoAddAsync(delicacyKey, geoEntriesDelicacy);
+            // 北京到深圳的公里数
+            var result = await _redisCacheManager.GeoDistanceAsync(delicacyKey, "beijing", "shenzhen");
             return Ok(result);
         }
     }

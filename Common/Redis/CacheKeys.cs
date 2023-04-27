@@ -13,5 +13,11 @@ namespace Common.Redis
         public const string LOCK_KEY = "lock";
 
         public const string LOCKTIMESPAN_KEY = "lockTimeSpan";
+
+        public const string ISLIKE_KEY = "isLike";
+
+        public const string FOLLOWS_KEY = "follows";
+
+        public const string GEO_KEY = "geo";
     }
 }
