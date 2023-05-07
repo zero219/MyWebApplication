@@ -153,7 +153,7 @@ namespace Common.Redis
         /// <returns></returns>
         public bool Exist(string key)
         {
-            return GetRedisData().KeyExists(key);
+            return GetRedisData().KeyExists(DataKey(key));
         }
 
         /// <summary>
@@ -312,7 +312,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<double?> GeoDistanceAsync(string key, string num1, string num2)
         {
-            return await GetRedisData().GeoDistanceAsync(DataKey(key), num1, num2,GeoUnit.Kilometers);
+            return await GetRedisData().GeoDistanceAsync(DataKey(key), num1, num2, GeoUnit.Kilometers);
         }
 
         /// <summary>
@@ -329,6 +329,10 @@ namespace Common.Redis
         #endregion
 
         #region BitMap
+        public async Task<bool> StringSetBitAsync(string key, long offset, bool flag)
+        {
+            return await GetRedisData().StringSetBitAsync(DataKey(key), offset, flag);
+        }
 
         #endregion
 
@@ -336,6 +340,22 @@ namespace Common.Redis
         public async Task<bool> HyperLogLogAddAsync(string key, string value)
         {
             return await GetRedisData().HyperLogLogAddAsync(DataKey(key), value);
+        }
+
+        public async Task<long> HyperLogLogLengthAsync(string key)
+        {
+            return await GetRedisData().HyperLogLogLengthAsync(DataKey(key));
+        }
+        /// <summary>
+        /// 合并多个HyperLogLog成一个
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="first"></param>
+        /// <param name="second"></param>
+        /// <returns></returns>
+        public async Task HyperLogLogMergeAsync(string key, string first, string second)
+        {
+            await GetRedisData().HyperLogLogMergeAsync(DataKey(key), first, second);
         }
         #endregion
 
@@ -691,9 +711,9 @@ namespace Common.Redis
             return result;
         }
 
-        public RedisResult Execute(string str, object[] obj)
+        public async Task<RedisResult> ExecuteAsync(string str, params object[] obj)
         {
-            var result = GetRedisData().Execute(str, obj);
+            var result = await GetRedisData().ExecuteAsync(str, obj);
             return result;
         }
 

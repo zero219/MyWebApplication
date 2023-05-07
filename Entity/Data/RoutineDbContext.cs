@@ -32,6 +32,10 @@ namespace Entity.Data
         public DbSet<SeckillVoucher> SeckillVouchers { get; set; }
         public DbSet<VoucherOrder> VoucherOrders { get; set; }
 
+        public DbSet<Follow> Follows { get; set; }
+
+        public DbSet<Sign> Signs { get; set; }
+
         //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) 
         //    => optionsBuilder
         //    .UseInMemoryDatabase("RoutineDbContext")
@@ -475,6 +479,10 @@ namespace Entity.Data
             new VoucherOrderEntityType().Configure(modelBuilder.Entity<VoucherOrder>());
 
             #endregion
+            //关注
+            new FollowEntityType().Configure(modelBuilder.Entity<Follow>());
+            // 签到
+            new SignEntityType().Configure(modelBuilder.Entity<Sign>());
         }
     }
 }

@@ -49,6 +49,15 @@ namespace Common.Redis
 
         Task<GeoPosition?[]> GeoHashAsync(string key, RedisValue[] redisValues);
 
+        /// <summary>
+        /// 添加
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="offset">索引0开始</param>
+        /// <param name="flag"></param>
+        /// <returns></returns>
+        Task<bool> StringSetBitAsync(string key, long offset, bool flag);
+
         string StreamAdd(string key, string filed, string value);
 
         StreamEntry[] StreamRead(string key, string position);
@@ -77,6 +86,6 @@ namespace Common.Redis
 
         RedisResult LuaScripts(string str, object obj);
 
-        RedisResult Execute(string str, object[] obj);
+        Task<RedisResult> ExecuteAsync(string str, params object[] obj);
     }
 }

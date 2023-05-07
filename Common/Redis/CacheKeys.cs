@@ -19,5 +19,7 @@ namespace Common.Redis
         public const string FOLLOWS_KEY = "follows";
 
         public const string GEO_KEY = "geo";
+
+        public const string SIGN_KEY = "sign";
     }
 }

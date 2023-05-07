@@ -35,7 +35,7 @@ namespace Bll
         }
 
         #region MyRegion
-      
+
         public async Task TaskWorkAsync(CancellationToken stoppingToken)
         {
             Console.WriteLine($"{DateTime.Now}");
@@ -44,9 +44,12 @@ namespace Bll
             var streamConsumerName = "OrderConsumer";
             var lastSeenMessageId = 1;
 
-            // 组不存在创建
-            _redisCacheManager.Execute("XGROUP", new object[] { "CREATE", "MyRedis:stream_orders", streamConsumerGroup, "0-0", "MKSTREAM" });
-            
+            var exists = _redisCacheManager.Exist(stream);
+            if (!exists)
+            {
+                // 组不存在创建
+                await _redisCacheManager.ExecuteAsync("XGROUP", new object[] { "CREATE", "MyRedis:stream_orders", streamConsumerGroup, "0-0", "MKSTREAM" });
+            }
             // redis队列异步创建订单
             while (!stoppingToken.IsCancellationRequested)
             {

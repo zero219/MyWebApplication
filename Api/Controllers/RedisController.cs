@@ -23,15 +23,21 @@ namespace Api.Controllers
     {
         private readonly ICompanyService _companyService;
         private readonly ISeckillVoucherService _seckillVoucherService;
+        private readonly ISignService _signService;
+        private readonly IFollowService _followService;
         private readonly IMapper _mapper;
         public RedisController(ILogger<RedisController> logger,
             IRedisCacheManager redisCacheManager,
             ICompanyService companyService,
+            ISignService signService,
             ISeckillVoucherService seckillVoucherService,
+            IFollowService followService,
             IMapper mapper) : base(logger, redisCacheManager)
         {
             _companyService = companyService ?? throw new ArgumentNullException(nameof(companyService));
             _seckillVoucherService = seckillVoucherService ?? throw new ArgumentNullException(nameof(seckillVoucherService));
+            _signService = signService ?? throw new ArgumentNullException(nameof(signService));
+            _followService = followService ?? throw new ArgumentNullException(nameof(followService));
             _mapper = mapper;
         }
         /// <summary>
@@ -186,19 +192,8 @@ namespace Api.Controllers
         [HttpGet("isFollow")]
         public async Task<IActionResult> IsFollow([FromQuery] long followUserId, [FromQuery] bool isFollow)
         {
-            var result = string.Empty;
-            var key = string.Format("{0}:{1}", CacheKeys.FOLLOWS_KEY, "jerry");
-            if (isFollow)
-            {
-                // 数据点赞库数量+1
-                result = await _redisCacheManager.SetAddAsync(key, followUserId.ToString()) ? "关注成功" : "您已成功关注,不需要再重复关注了";
-            }
-            else
-            {
-                // 数据点赞库数量-1
-                result = await _redisCacheManager.SetRemoveAsync(key, followUserId.ToString()) ? "取消关注成功" : "您已取消了关注";
+            var result = await _followService.IsFollowAsync(followUserId, isFollow);
 
-            }
             return Ok(result);
         }
 
@@ -231,6 +226,30 @@ namespace Api.Controllers
             var delicacy = await _redisCacheManager.GeoAddAsync(delicacyKey, geoEntriesDelicacy);
             // 北京到深圳的公里数
             var result = await _redisCacheManager.GeoDistanceAsync(delicacyKey, "beijing", "shenzhen");
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 签到
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <returns></returns>
+        [HttpGet("sign")]
+        public async Task<IActionResult> Sign([FromQuery] long userId)
+        {
+            var result = await _signService.Sign(userId);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 统计连续签到的次数
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <returns></returns>
+        [HttpGet("signCount")]
+        public async Task<IActionResult> SignCount([FromQuery] long userId)
+        {
+            var result = await _signService.SignCountAsync(userId);
             return Ok(result);
         }
     }
