@@ -39,11 +39,11 @@ namespace Api
     {
         public Startup(IConfiguration configuration)
         {
-            Configuration = configuration;
+            _configuration = configuration;
         }
        
         public string ApiName { get; set; } = "RESTfull";
-        public IConfiguration Configuration { get; }
+        public IConfiguration _configuration { get; }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
@@ -139,16 +139,16 @@ namespace Api
                     //验证发行人
                     ValidateIssuer = true,
                     //发行人
-                    ValidIssuer = Configuration.GetSection("JwtTokenManagement")["Issuer"],
+                    ValidIssuer = _configuration.GetSection("JwtTokenManagement")["Issuer"],
                     //验证订阅人
                     ValidateAudience = true,
                     //订阅人
-                    ValidAudience = Configuration.GetSection("JwtTokenManagement")["Audience"],
+                    ValidAudience = _configuration.GetSection("JwtTokenManagement")["Audience"],
                     //验证是token否过期
                     ValidateLifetime = true,
                     // 是否开启签名认证
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(Configuration.GetSection("JwtTokenManagement")["Secret"])),
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(_configuration.GetSection("JwtTokenManagement")["Secret"])),
                     //这个是缓冲过期时间，也就是说，即使我们配置了过期时间，这里也要考虑进去，过期时间+缓冲，默认好像是7分钟，你可以直接设置为0
                     ClockSkew = TimeSpan.Zero,
                     RequireExpirationTime = true,
@@ -159,7 +159,7 @@ namespace Api
             #region 数据库连接
             services.AddDbContext<RoutineDbContext>(options =>
             {
-                options.UseSqlite(Configuration.GetConnectionString("DefaultConnection"));
+                options.UseSqlite(_configuration.GetConnectionString("DefaultConnection"));
             });
             #endregion
 
@@ -324,9 +324,9 @@ namespace Api
             builder.RegisterTypes(assemblyBll.GetTypes()).AsImplementedInterfaces().InstancePerLifetimeScope();
 
             #region Redis缓存注入
-            var conn = Configuration.GetSection("Redis:DefaultConnection").Value;
-            var instanceName = Configuration.GetSection("Redis:InstanceName").Value;
-            var defaultDB = int.Parse(Configuration.GetSection("Redis:DefaultDB").Value.ToString() ?? "0");
+            var conn = _configuration.GetSection("Redis:DefaultConnection").Value;
+            var instanceName = _configuration.GetSection("Redis:InstanceName").Value;
+            var defaultDB = int.Parse(_configuration.GetSection("Redis:DefaultDB").Value.ToString() ?? "0");
             builder.Register(x => new RedisCacheManager(conn, instanceName, defaultDB)).As<IRedisCacheManager>().SingleInstance();
             #endregion
 
