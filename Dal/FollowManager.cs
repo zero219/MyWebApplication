@@ -7,7 +7,7 @@ using System.Text;
 
 namespace Dal
 {
-    internal class FollowManager : BaseRepository<Follow>, IFollowManager
+    public class FollowManager : BaseRepository<Follow>, IFollowManager
     {
         public FollowManager(RoutineDbContext context) : base(context)
         {

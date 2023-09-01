@@ -26,7 +26,7 @@ namespace Bll
                { "Introduction", new PropertyMappingValue(new List<string>(){ "Introduction" })},
           };
 
-        private static ICompanyManager _companyManager;
+        private readonly ICompanyManager _companyManager;
         public CompanyService(ICompanyManager companyManager) : base(companyManager)
         {
             _companyManager = companyManager;

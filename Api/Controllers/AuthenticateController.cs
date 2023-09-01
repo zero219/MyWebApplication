@@ -18,6 +18,7 @@ using Newtonsoft.Json;
 using log4net.Core;
 using Microsoft.Extensions.Logging;
 using Common.Redis;
+using IBll.IdentityService;
 
 namespace Api.Controllers
 {
@@ -37,10 +38,13 @@ namespace Api.Controllers
         private readonly SignInManager<ApplicationUser> _signInManager;
 
         private readonly RoleManager<ApplicationRole> _roleManager;
+
+        private readonly IApplicationUserClaimService _applicationUserClaimService;
         public AuthenticateController(IConfiguration configuration,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             RoleManager<ApplicationRole> roleManager,
+            IApplicationUserClaimService applicationUserClaimService,
             ILogger<AuthenticateController> logger,
             IRedisCacheManager redisCacheManager) : base(logger, redisCacheManager)
         {
@@ -48,6 +52,8 @@ namespace Api.Controllers
             _userManager = userManager;
             _signInManager = signInManager;
             _roleManager = roleManager;
+            _applicationUserClaimService = applicationUserClaimService;
+
         }
 
         /// <summary>
@@ -83,8 +89,8 @@ namespace Api.Controllers
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
         {
             var loginResult = await _signInManager.PasswordSignInAsync(
-            loginDto.UserName,
-            loginDto.PassWord,
+            loginDto.UserName = "zero219",
+            loginDto.PassWord = "zzc123",
             false,//是否保存cookie
             false//3次是否锁定
             );
@@ -174,5 +180,63 @@ namespace Api.Controllers
             return Ok();
         }
 
+        /// <summary>
+        /// 菜单列表
+        /// </summary>
+        /// <returns></returns>
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpGet("menuList")]
+        public async Task<IActionResult> MenuList()
+        {
+            string token = Request.Headers["Authorization"];
+            if (string.IsNullOrEmpty(token))
+            {
+                return NotFound("token为空");
+            }
+            token = token.Replace("Bearer ", null);
+            var jwtHandler = new JwtSecurityTokenHandler();
+            // token校验
+            if (!jwtHandler.CanReadToken(token))
+            {
+                return BadRequest();
+            }
+            JwtSecurityToken jwtToken = jwtHandler.ReadJwtToken(token);
+            var claims = jwtToken.Claims.ToDictionary(x => x.Type);
+            var issuer = claims.Where(x => x.Key == "iss").FirstOrDefault().Value.Issuer;
+            //获取用户
+            var user = await _userManager.FindByNameAsync(issuer);
+            if (user == null)
+            {
+                return NotFound("查询用户失败");
+            }
+            List<MenuDataListDto> menuDataListDtos = new List<MenuDataListDto>();
+            //获取用户的claim
+            var claimList = _applicationUserClaimService.LoadEntities(x => x.UserId == user.Id)
+                .OrderBy(x => x.ParentClaimId)
+                .ToList()
+                .GroupBy(x => new { x.ParentClaimId, x.ParentClaim });
+
+            foreach (var claim in claimList)
+            {
+                MenuDataListDto menuDataListDto = new MenuDataListDto
+                {
+                    Id = claim.Key.ParentClaimId,
+                    Name = claim.Key.ParentClaim,
+                    Children = new List<Children>()
+                };
+                foreach (var item in claim)
+                {
+                    var children = new Children()
+                    {
+                        Id = item.ParentClaimId,
+                        Name = item.ClaimValue,
+                        Path = "/" + item.ClaimType
+                    };
+                    menuDataListDto.Children.Add(children);
+                }
+                menuDataListDtos.Add(menuDataListDto);
+            }
+            return Ok(menuDataListDtos);
+        }
     }
 }
