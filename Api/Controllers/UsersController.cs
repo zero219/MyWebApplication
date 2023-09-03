@@ -32,8 +32,13 @@ namespace Api.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpGet("users", Name = nameof(GetUsers))]
-        public async Task<IActionResult> GetUsers()
+        public async Task<IActionResult> GetUsers([FromQuery] string userName)
         {
+            if (!string.IsNullOrWhiteSpace(userName))
+            {
+                var user = await _userManager.FindByNameAsync(userName);
+                return Ok(user);
+            }
             var usersList = await _userManager.Users.ToListAsync();
             return Ok(usersList);
         }

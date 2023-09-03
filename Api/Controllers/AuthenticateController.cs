@@ -228,7 +228,7 @@ namespace Api.Controllers
                 {
                     var children = new Children()
                     {
-                        Id = item.ParentClaimId,
+                        Id = item.Id,
                         Name = item.ClaimValue,
                         Path = "/" + item.ClaimType
                     };
