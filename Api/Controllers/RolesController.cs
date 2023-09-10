@@ -10,10 +10,9 @@ using System.Linq;
 using System.Threading.Tasks;
 namespace Api.Controllers
 {
-    
     [ApiController]
     [Route("api")]
-    [Authorize(AuthenticationSchemes = "Bearer",Roles ="管理员", Policy = "角色管理")]
+    [Authorize(AuthenticationSchemes = "Bearer", Roles = "管理员", Policy = "角色管理")]
     public class RolesController : ControllerBase
     {
         private readonly RoleManager<ApplicationRole> _roleManager;
@@ -32,6 +31,22 @@ namespace Api.Controllers
         {
             var roles = await _roleManager.Roles.ToListAsync();
             return Ok(roles);
+        }
+
+        /// <summary>
+        /// 角色树
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("rolesTree")]
+        public async Task<IActionResult> GetRolesTree()
+        {
+            var roles = await _roleManager.Roles.ToListAsync();
+            var rolesTree = roles.Select(x => new RoleTreeDto()
+            {
+                Id = x.Id,
+                Label = x.Name
+            });
+            return Ok(rolesTree);
         }
 
         /// <summary>

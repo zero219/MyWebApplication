@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Entity.Dtos
+namespace Entity.Dtos.ClaimsDto
 {
     /// <summary>
-    /// 菜单
+    /// 权限
     /// </summary>
-    public class MenuDataListDto
+    public class ClaimsTreeDto
     {
         /// <summary>
         /// Id
@@ -16,12 +16,13 @@ namespace Entity.Dtos
         /// <summary>
         /// 名称
         /// </summary>
-        public string Name { get; set; }
+        public string Label { get; set; }
         /// <summary>
         /// 子节点
         /// </summary>
         public List<Children> Children { get; set; }
     }
+
     public class Children
     {
         /// <summary>
@@ -31,10 +32,6 @@ namespace Entity.Dtos
         /// <summary>
         /// 名称
         /// </summary>
-        public string Name { get; set; }
-        /// <summary>
-        /// 路径
-        /// </summary>
-        public string Path { get; set; }
+        public string Label { get; set; }
     }
 }

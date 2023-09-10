@@ -60,7 +60,7 @@ namespace Api
             services.AddHttpCacheHeaders(expires =>//过期模型
             {
                 //过期时间
-                expires.MaxAge = 1;
+                expires.MaxAge = 120;
                 //私有的
                 expires.CacheLocation = CacheLocation.Private;
             },
@@ -297,7 +297,7 @@ namespace Api
             {
                 options.AddPolicy("any", configure =>
                 {
-                    configure.WithOrigins("http://127.0.0.1", "http://localhost:8080")//允许跨域来源,多个逗号隔开
+                    configure.WithOrigins("http://localhost:5000/", "http://localhost:8080")//允许跨域来源,多个逗号隔开
                     .AllowAnyMethod()
                     .AllowAnyHeader()
                     //.AllowAnyOrigin()//允许所有主机来源
@@ -378,7 +378,7 @@ namespace Api
             #endregion
 
             #region ETAG缓存中间件
-            app.UseHttpCacheHeaders();
+            //app.UseHttpCacheHeaders();
             #endregion
             //路由中间件
             app.UseRouting();

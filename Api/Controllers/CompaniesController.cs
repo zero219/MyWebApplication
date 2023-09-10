@@ -233,7 +233,7 @@ namespace Api.Controllers
             {
                 companyId = company.Id,
                 fields = string.Empty
-            }, companyDto); ;
+            }, companyDto);
         }
 
         /// <summary>

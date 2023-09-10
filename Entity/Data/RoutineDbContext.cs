@@ -385,24 +385,6 @@ namespace Entity.Data
             modelBuilder.Entity<ApplicationUserClaim>().HasData(new ApplicationUserClaim
             {
                 Id = 1,
-                ParentClaimId = 3,
-                ParentClaim = "员工管理",
-                ClaimType = "Companies",
-                ClaimValue = "公司列表",
-                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
-            },
-            new ApplicationUserClaim
-            {
-                Id = 2,
-                ParentClaimId = 3,
-                ParentClaim = "员工管理",
-                ClaimType = "Employees",
-                ClaimValue = "员工列表",
-                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
-            },
-            new ApplicationUserClaim
-            {
-                Id = 3,
                 ParentClaimId = 1,
                 ParentClaim = "用户管理",
                 ClaimType = "Users",
@@ -411,11 +393,29 @@ namespace Entity.Data
             },
             new ApplicationUserClaim
             {
-                Id = 4,
+                Id = 2,
                 ParentClaimId = 2,
                 ParentClaim = "角色管理",
                 ClaimType = "Roles",
                 ClaimValue = "角色列表",
+                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
+            },
+            new ApplicationUserClaim
+            {
+                Id = 3,
+                ParentClaimId = 3,
+                ParentClaim = "员工管理",
+                ClaimType = "Companies",
+                ClaimValue = "公司列表",
+                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
+            },
+            new ApplicationUserClaim
+            {
+                Id = 4,
+                ParentClaimId = 3,
+                ParentClaim = "员工管理",
+                ClaimType = "Employees",
+                ClaimValue = "员工列表",
                 UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
             });
             #endregion

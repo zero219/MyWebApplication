@@ -1,5 +1,7 @@
-﻿using Entity.Dtos.UsersDtos;
+﻿using Entity.Dtos.ClaimsDto;
+using Entity.Dtos.UsersDtos;
 using Entity.Models.IdentityModels;
+using IBll.IdentityService;
 using Marvin.Cache.Headers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -21,10 +23,14 @@ namespace Api.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
-        public UsersController(UserManager<ApplicationUser> userManager, RoleManager<ApplicationRole> roleManager)
+        private readonly IApplicationUserClaimService _applicationUserClaimService;
+        public UsersController(UserManager<ApplicationUser> userManager,
+            RoleManager<ApplicationRole> roleManager,
+            IApplicationUserClaimService applicationUserClaimService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
+            _applicationUserClaimService = applicationUserClaimService;
         }
 
         /// <summary>
@@ -65,18 +71,24 @@ namespace Api.Controllers
         {
             try
             {
+                var ph = new PasswordHasher<ApplicationUser>();
                 var user = new ApplicationUser
                 {
                     Id = Guid.NewGuid().ToString(),
                     UserName = userDto.UserName,
+                    PhoneNumber = userDto.PhoneNum,
                     Email = userDto.Email
                 };
+                user.PasswordHash = ph.HashPassword(user, userDto.PassWord);
+                // 添加
                 var result = await _userManager.CreateAsync(user);
                 if (!result.Succeeded)
                 {
                     return BadRequest(result);
                 }
-                return CreatedAtRoute(nameof(GetUser), user.Id);
+                return CreatedAtRoute(nameof(GetUser),
+                    new { userId = user.Id },
+                    new ApplicationUser() { UserName = userDto.UserName, Email = userDto.Email });
 
             }
             catch (Exception e)
@@ -96,16 +108,21 @@ namespace Api.Controllers
             try
             {
                 var user = await _userManager.FindByIdAsync(userDto.UserId);
-                if (string.IsNullOrEmpty(user.Id))
+                if (user == null)
                 {
                     return BadRequest();
                 }
+                user.UserName = userDto.UserName;
+                user.Email = userDto.Email;
+                user.PhoneNumber = userDto.PhoneNum;
                 var result = await _userManager.UpdateAsync(user);
                 if (!result.Succeeded)
                 {
                     return BadRequest(result);
                 }
-                return CreatedAtRoute(nameof(GetUser), user.Id);
+                return CreatedAtRoute(nameof(GetUser),
+                    new { userId = user.Id },
+                    new ApplicationUser() { UserName = userDto.UserName, Email = userDto.Email });
             }
             catch (Exception e)
             {
@@ -127,6 +144,10 @@ namespace Api.Controllers
                 if (user == null)
                 {
                     return NotFound();
+                }
+                if (user.UserName.ToLower() == "zero219")
+                {
+                    return NoContent();
                 }
                 await _userManager.DeleteAsync(user);
                 return NoContent();
@@ -202,6 +223,48 @@ namespace Api.Controllers
             }
             var claims = await _userManager.GetClaimsAsync(user);
             return Ok(claims);
+        }
+
+        /// <summary>
+        /// 权限树
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("claimsTree", Name = nameof(GetClaimsTree))]
+        public async Task<IActionResult> GetClaimsTree()
+        {
+            //查询当前用户
+            var user = await _userManager.FindByIdAsync("ae5d8653-0ce7-4d72-984b-4658dbdac654");
+            if (user == null)
+            {
+                return BadRequest();
+            }
+            //获取用户的claim
+            var claimList = _applicationUserClaimService.LoadEntities(x => x.UserId == user.Id)
+                .OrderBy(x => x.ParentClaimId)
+                .ToList()
+                .GroupBy(x => new { x.ParentClaimId, x.ParentClaim });
+            List<ClaimsTreeDto> claimsTreeDtos = new List<ClaimsTreeDto>();
+            foreach (var claim in claimList)
+            {
+                ClaimsTreeDto claimsTreeDto = new ClaimsTreeDto
+                {
+                    Id = claim.Key.ParentClaimId,
+                    Label = claim.Key.ParentClaim,
+                    Children = new List<Children>()
+                };
+                foreach (var item in claim)
+                {
+                    var children = new Children()
+                    {
+                        Id = item.Id,
+                        Label = item.ClaimValue
+                    };
+                    claimsTreeDto.Children.Add(children);
+                }
+                claimsTreeDtos.Add(claimsTreeDto);
+            }
+
+            return Ok(claimsTreeDtos);
         }
 
         /// <summary>

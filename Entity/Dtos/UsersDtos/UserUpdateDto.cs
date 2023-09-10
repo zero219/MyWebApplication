@@ -16,6 +16,8 @@ namespace Entity.Dtos.UsersDtos
         [Display(Name = "邮箱")]
         [Required]
         public string Email { get; set; }
-
+        [Display(Name = "手机")]
+        [Required]
+        public string PhoneNum { get; set; }
     }
 }
