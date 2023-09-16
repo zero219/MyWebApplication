@@ -45,7 +45,7 @@ namespace Api.Controllers
             {
                 Id = x.Id,
                 Label = x.Name
-            });
+            }).ToList();
             return Ok(rolesTree);
         }
 

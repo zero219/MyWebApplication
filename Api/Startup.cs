@@ -35,13 +35,13 @@ using Bll;
 
 namespace Api
 {
-    public class Startup 
+    public class Startup
     {
         public Startup(IConfiguration configuration)
         {
             _configuration = configuration;
         }
-       
+
         public string ApiName { get; set; } = "RESTfull";
         public IConfiguration _configuration { get; }
 
@@ -82,14 +82,6 @@ namespace Api
                     Duration = 120
                 });
                 #endregion
-
-                #region xml2.0写法
-                //默认是json格式，也支持xml格式
-                //setup.OutputFormatters.Add(new XmlDataContractSerializerOutputFormatter());
-                //设置默认格式XML
-                //setup.OutputFormatters.Insert(0, new XmlDataContractSerializerOutputFormatter());
-                #endregion
-
             }).AddNewtonsoftJson(setup =>
             {
                 //支持json格式,json与xml顺序不同,返回优先级也不同
@@ -97,26 +89,26 @@ namespace Api
             })
              .AddXmlDataContractSerializerFormatters()//支持xml格式3.x以上写法,建议使用3.x写法,支持类型更多
              .ConfigureApiBehaviorOptions(setup =>
-            {
-                //自定义api错误
-                setup.InvalidModelStateResponseFactory = context =>
-                {
-                    var problemDetails = new ValidationProblemDetails(context.ModelState)
-                    {
-                        Type = "http://www.baidu.com",
-                        Title = "出现了一个错误",
-                        Status = StatusCodes.Status422UnprocessableEntity,
-                        Detail = "请看详细信息",
-                        Instance = context.HttpContext.Request.Path
-                    };
-                    problemDetails.Extensions.Add("traceId", context.HttpContext.TraceIdentifier);
-                    return new UnprocessableEntityObjectResult(problemDetails)
-                    {
+             {
+                 //自定义api错误
+                 setup.InvalidModelStateResponseFactory = context =>
+                 {
+                     var problemDetails = new ValidationProblemDetails(context.ModelState)
+                     {
+                         Type = "http://www.baidu.com",
+                         Title = "出现了一个错误",
+                         Status = StatusCodes.Status422UnprocessableEntity,
+                         Detail = "实体验证不通过",
+                         Instance = context.HttpContext.Request.Path
+                     };
+                     problemDetails.Extensions.Add("traceId", context.HttpContext.TraceIdentifier);
+                     return new UnprocessableEntityObjectResult(problemDetails)
+                     {
                         //返回格式类型
                         ContentTypes = { "application/problem+json" }
-                    };
-                };
-            });
+                     };
+                 };
+             });
 
             #region 全局注册Aceept:application/vdn.company.hateoas+json的Media Type
             services.Configure<MvcOptions>(config =>
@@ -231,7 +223,6 @@ namespace Api
             #endregion
 
             // 启动一个异步线程执行永久任务
-            //services.AddHostedService<SeckillVoucherService>();
             services.AddHostedService<BackgroundServiceStart>();
 
             #region 注册Swagger

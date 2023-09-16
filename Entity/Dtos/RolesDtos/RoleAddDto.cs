@@ -7,8 +7,13 @@ namespace Entity.Dtos.RolesDtos
 {
     public class RoleAddDto
     {
-        [Display(Name ="角色名称")]
+        [Display(Name = "角色名称")]
         [Required]
         public string RoleName { get; set; }
+    }
+
+    public class UserRolesDto
+    {
+        public ICollection<RoleTreeDto> Roles { get; set; }
     }
 }

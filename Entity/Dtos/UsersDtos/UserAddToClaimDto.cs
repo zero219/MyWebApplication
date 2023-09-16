@@ -1,19 +1,33 @@
-﻿using System;
+﻿using Entity.Dtos.ClaimsDto;
 using System.Collections.Generic;
-using System.Text;
+using System.ComponentModel.DataAnnotations;
 
 namespace Entity.Dtos.UsersDtos
 {
     public class UserAddToClaimDto
     {
-        public string UserId { get; set; }
-        public ICollection<ClaimsList> ClaimsList { get; set; }
-       
+        public ICollection<ClaimsChildren> Claims { get; set; }
+    }
+    
+    public class ClaimsChildren
+    {
+        /// <summary>
+        /// Id
+        /// </summary>
+        public int Id { get; set; }
+        /// <summary>
+        /// 名称
+        /// </summary>
+        public string Label { get; set; }
     }
 
-    public class ClaimsList
+    public class ClaimsData
     {
-        public string ClaimValue { get; set; }
+        public int Id { get; set; }
+        public int ParentClaimId { get; set; }
+        public string ParentClaim { get; set; }
         public string ClaimType { get; set; }
+        public string ClaimValue { get; set; }
+       
     }
 }

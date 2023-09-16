@@ -18,7 +18,8 @@ using Newtonsoft.Json;
 using log4net.Core;
 using Microsoft.Extensions.Logging;
 using Common.Redis;
-using IBll.IdentityService;
+using Microsoft.EntityFrameworkCore;
+using Entity.Data;
 
 namespace Api.Controllers
 {
@@ -39,12 +40,12 @@ namespace Api.Controllers
 
         private readonly RoleManager<ApplicationRole> _roleManager;
 
-        private readonly IApplicationUserClaimService _applicationUserClaimService;
+        private readonly RoutineDbContext _dbContext;
         public AuthenticateController(IConfiguration configuration,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             RoleManager<ApplicationRole> roleManager,
-            IApplicationUserClaimService applicationUserClaimService,
+            RoutineDbContext dbContext,
             ILogger<AuthenticateController> logger,
             IRedisCacheManager redisCacheManager) : base(logger, redisCacheManager)
         {
@@ -52,7 +53,7 @@ namespace Api.Controllers
             _userManager = userManager;
             _signInManager = signInManager;
             _roleManager = roleManager;
-            _applicationUserClaimService = applicationUserClaimService;
+            _dbContext = dbContext;
 
         }
 
@@ -172,7 +173,7 @@ namespace Api.Controllers
         /// 登出
         /// </summary>
         /// <returns></returns>
-        [Authorize(Roles = "Admin")]
+        [Authorize(AuthenticationSchemes = "Bearer")]
         [HttpGet("logout")]
         public async Task<IActionResult> Logout()
         {
@@ -211,11 +212,10 @@ namespace Api.Controllers
             }
             List<MenuDataListDto> menuDataListDtos = new List<MenuDataListDto>();
             //获取用户的claim
-            var claimList = _applicationUserClaimService.LoadEntities(x => x.UserId == user.Id)
+            var claimList = _dbContext.UserClaims.Where(x => x.UserId == user.Id)
                 .OrderBy(x => x.ParentClaimId)
                 .ToList()
                 .GroupBy(x => new { x.ParentClaimId, x.ParentClaim });
-
             foreach (var claim in claimList)
             {
                 MenuDataListDto menuDataListDto = new MenuDataListDto

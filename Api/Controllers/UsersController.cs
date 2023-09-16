@@ -1,13 +1,14 @@
-﻿using Entity.Dtos.ClaimsDto;
+﻿using Entity.Data;
+using Entity.Dtos.ClaimsDto;
+using Entity.Dtos.RolesDtos;
 using Entity.Dtos.UsersDtos;
 using Entity.Models.IdentityModels;
-using IBll.IdentityService;
-using Marvin.Cache.Headers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,14 +24,23 @@ namespace Api.Controllers
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
-        private readonly IApplicationUserClaimService _applicationUserClaimService;
-        public UsersController(UserManager<ApplicationUser> userManager,
+        private readonly RoutineDbContext _dbContext;
+
+        private List<ClaimsData> claimsList = new List<ClaimsData>() {
+          new ClaimsData  { Id=1, ParentClaimId=1, ParentClaim="用户管理", ClaimType ="Users", ClaimValue="用户列表" },
+          new ClaimsData  { Id=2, ParentClaimId=2, ParentClaim="角色管理", ClaimType ="Roles", ClaimValue="角色列表" },
+          new ClaimsData  { Id=3, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Companies", ClaimValue="公司列表" },
+          new ClaimsData  { Id=4, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Employees", ClaimValue="员工列表" },
+        };
+
+        public UsersController(
+            UserManager<ApplicationUser> userManager,
             RoleManager<ApplicationRole> roleManager,
-            IApplicationUserClaimService applicationUserClaimService)
+            RoutineDbContext dbContext)
         {
             _userManager = userManager;
             _roleManager = roleManager;
-            _applicationUserClaimService = applicationUserClaimService;
+            _dbContext = dbContext;
         }
 
         /// <summary>
@@ -173,17 +183,23 @@ namespace Api.Controllers
                 return BadRequest();
             }
             var roles = await _userManager.GetRolesAsync(user);
-            return Ok(roles);
+            var roleDetails = roles.Select(roleName => new
+            {
+                Id = _roleManager.Roles.Single(r => r.Name == roleName).Id,
+                Label = roleName
+            }).ToList();
+            return Ok(roleDetails);
         }
 
         /// <summary>
         /// 用户添加角色
         /// </summary>
-        /// <param name="userId">用户Id</param>
-        /// <param name="RoleNames">角色名</param>
+        /// <param name="userId"></param>
+        /// <param name="userRoles"></param>
         /// <returns></returns>
+        /// <exception cref="Exception"></exception>
         [HttpPost("users/{userId}/roles", Name = nameof(UserAddToRoles))]
-        public async Task<IActionResult> UserAddToRoles(string userId, IEnumerable<string> RoleNames)
+        public async Task<IActionResult> UserAddToRoles(string userId, UserRolesDto userRoles)
         {
             try
             {
@@ -192,17 +208,28 @@ namespace Api.Controllers
                 {
                     return BadRequest();
                 }
-                //为用户添加没有使用的角色
-                var result = await _userManager.AddToRolesAsync(user, RoleNames);
-                if (!result.Succeeded)
+                List<ApplicationUserRole> applications = new List<ApplicationUserRole>();
+                foreach (var role in userRoles.Roles)
                 {
-                    return BadRequest();
+                    ApplicationUserRole applicationUserRole = new ApplicationUserRole();
+                    applicationUserRole.UserId = user.Id;
+                    applicationUserRole.RoleId = role.Id;
+                    applications.Add(applicationUserRole);
                 }
-                var roles = await _userManager.GetRolesAsync(user);
-                return CreatedAtRoute(nameof(UserToRoles), new { user.Id }, roles);
+                // 开始事务
+                _dbContext.Database.BeginTransaction();
+                var userRolesList = await _dbContext.UserRoles.Where(x => x.UserId == user.Id).ToListAsync();
+                _dbContext.UserRoles.RemoveRange(userRolesList);
+                _dbContext.UserRoles.AddRange(applications);
+                _dbContext.SaveChanges();
+                // 提交事务
+                _dbContext.Database.CommitTransaction();
+                return StatusCode(StatusCodes.Status201Created);
             }
             catch (Exception e)
             {
+                // 回滚事务
+                _dbContext.Database.RollbackTransaction();
                 throw new Exception(e.Message);
             }
         }
@@ -221,8 +248,15 @@ namespace Api.Controllers
             {
                 return BadRequest();
             }
-            var claims = await _userManager.GetClaimsAsync(user);
-            return Ok(claims);
+            var userClaims = _dbContext.UserClaims
+                .Where(uc => uc.UserId == userId)
+                .Select(uc => new ApplicationUserClaim
+                {
+                    Id = uc.Id,
+                    ClaimValue = uc.ClaimValue
+                })
+                .ToList();
+            return Ok(userClaims);
         }
 
         /// <summary>
@@ -230,18 +264,9 @@ namespace Api.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpGet("claimsTree", Name = nameof(GetClaimsTree))]
-        public async Task<IActionResult> GetClaimsTree()
+        public IActionResult GetClaimsTree()
         {
-            //查询当前用户
-            var user = await _userManager.FindByIdAsync("ae5d8653-0ce7-4d72-984b-4658dbdac654");
-            if (user == null)
-            {
-                return BadRequest();
-            }
-            //获取用户的claim
-            var claimList = _applicationUserClaimService.LoadEntities(x => x.UserId == user.Id)
-                .OrderBy(x => x.ParentClaimId)
-                .ToList()
+            var claimList = claimsList.OrderBy(x => x.ParentClaimId).ToList()
                 .GroupBy(x => new { x.ParentClaimId, x.ParentClaim });
             List<ClaimsTreeDto> claimsTreeDtos = new List<ClaimsTreeDto>();
             foreach (var claim in claimList)
@@ -270,35 +295,49 @@ namespace Api.Controllers
         /// <summary>
         /// 添加Claims
         /// </summary>
+        /// <param name="userId"></param>
         /// <param name="userAddToClaimDto"></param>
         /// <returns></returns>
         /// <exception cref="Exception"></exception>
-        [HttpPost("users/claims", Name = nameof(UserAddToClaims))]
-        public async Task<IActionResult> UserAddToClaims([FromBody] UserAddToClaimDto userAddToClaimDto)
+        [HttpPost("users/{userId}/claims", Name = nameof(UserAddToClaims))]
+        public async Task<IActionResult> UserAddToClaims(string userId, [FromBody] UserAddToClaimDto userAddToClaimDto)
         {
             try
             {
                 //查询当前用户
-                var user = await _userManager.FindByIdAsync(userAddToClaimDto.UserId);
+                var user = await _userManager.FindByIdAsync(userId);
                 if (user == null)
                 {
                     return BadRequest();
                 }
-                foreach (var claim in userAddToClaimDto.ClaimsList)
+                List<ApplicationUserClaim> userClaimsList = new List<ApplicationUserClaim>();
+                foreach (var claim in userAddToClaimDto.Claims)
                 {
-                    var applicationClaim = new ApplicationUserClaim()
-                    {
-                        ClaimType = claim.ClaimType,
-                        ClaimValue = claim.ClaimValue,
-                    };
-                    user.Claims.Add(applicationClaim);
-                    await _userManager.UpdateAsync(user);
+                    var applicationUserClaim = new ApplicationUserClaim();
+                    applicationUserClaim.Id = claim.Id;
+                    applicationUserClaim.ParentClaimId = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault().ParentClaimId;
+                    applicationUserClaim.ParentClaim = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault().ParentClaim;
+                    applicationUserClaim.UserId = user.Id;
+                    applicationUserClaim.ClaimType = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault().ClaimType.ToString();
+                    applicationUserClaim.ClaimValue = claim.Label;
+                    userClaimsList.Add(applicationUserClaim);
                 }
-                var claims = await _userManager.GetClaimsAsync(user);
-                return CreatedAtRoute(nameof(UserToClaims), new { userId = user.Id }, claims);
+                // 开始事务
+                _dbContext.Database.BeginTransaction();
+                var userClaims = await _dbContext.UserClaims.Where(uc => uc.UserId == user.Id).ToListAsync();
+                // 先删除后添加
+                _dbContext.UserClaims.RemoveRange(userClaims);
+                _dbContext.UserClaims.AddRange(userClaimsList);
+                _dbContext.SaveChanges();
+                // 提交事务
+                _dbContext.Database.CommitTransaction();
+
+                return StatusCode(StatusCodes.Status201Created);
             }
             catch (Exception e)
             {
+                // 回滚事务
+                _dbContext.Database.RollbackTransaction();
                 throw new Exception(e.Message);
             }
         }
