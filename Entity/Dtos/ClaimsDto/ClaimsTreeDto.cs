@@ -12,7 +12,7 @@ namespace Entity.Dtos.ClaimsDto
         /// <summary>
         /// Id
         /// </summary>
-        public int Id { get; set; }
+        public int? Id { get; set; }
         /// <summary>
         /// 名称
         /// </summary>
@@ -28,7 +28,7 @@ namespace Entity.Dtos.ClaimsDto
         /// <summary>
         /// Id
         /// </summary>
-        public int Id { get; set; }
+        public int? Id { get; set; }
         /// <summary>
         /// 名称
         /// </summary>

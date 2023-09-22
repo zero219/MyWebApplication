@@ -12,7 +12,7 @@ namespace Entity.Models.IdentityModels
         /// <summary>
         /// 父节点ID
         /// </summary>
-        public int ParentClaimId { get; set; }
+        public int? ParentClaimId { get; set; }
         /// <summary>
         /// 父节点
         /// </summary>

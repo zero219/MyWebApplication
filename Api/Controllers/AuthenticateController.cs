@@ -20,6 +20,7 @@ using Microsoft.Extensions.Logging;
 using Common.Redis;
 using Microsoft.EntityFrameworkCore;
 using Entity.Data;
+using Entity.Dtos.UsersDtos;
 
 namespace Api.Controllers
 {
@@ -57,6 +58,13 @@ namespace Api.Controllers
 
         }
 
+        private List<ClaimsData> claimsList = new List<ClaimsData>() {
+          new ClaimsData  { Id=1, ParentClaimId=1, ParentClaim="用户管理", ClaimType ="Users", ClaimValue="用户列表" },
+          new ClaimsData  { Id=2, ParentClaimId=2, ParentClaim="角色管理", ClaimType ="Roles", ClaimValue="角色列表" },
+          new ClaimsData  { Id=3, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Companies", ClaimValue="公司列表" },
+          new ClaimsData  { Id=4, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Employees", ClaimValue="员工列表" },
+        };
+
         /// <summary>
         /// 注册
         /// </summary>
@@ -90,10 +98,10 @@ namespace Api.Controllers
         public async Task<IActionResult> Login([FromBody] LoginDto loginDto)
         {
             var loginResult = await _signInManager.PasswordSignInAsync(
-            loginDto.UserName = "zero219",
-            loginDto.PassWord = "zzc123",
-            false,//是否保存cookie
-            false//3次是否锁定
+                    loginDto.UserName,
+                    loginDto.PassWord,
+                    false,//是否保存cookie
+                    false//3次是否锁定
             );
             //判断登录
             if (!loginResult.Succeeded)
@@ -132,6 +140,8 @@ namespace Api.Controllers
             };
             //获取用户
             var user = await _userManager.FindByNameAsync(loginDto.UserName);
+            var userName = new Claim(ClaimTypes.Name, user.UserName);
+            claimsList.Add(userName);
             //获取角色
             var roles = await _userManager.GetRolesAsync(user);
             //多个角色
@@ -149,8 +159,6 @@ namespace Api.Controllers
             }
             var distinctClaims = claims.Where((x, i) => claims.FindIndex(f => f.Type == x.Type && f.Value == x.Value) == i).ToList();
             claimsList.AddRange(distinctClaims);
-            //claims.AddRange("Admin,System".Split(',').Select(x => new Claim(ClaimTypes.Role, x)));
-
             #endregion
 
             #region signiture
@@ -185,58 +193,120 @@ namespace Api.Controllers
         /// 菜单列表
         /// </summary>
         /// <returns></returns>
-        [Authorize(AuthenticationSchemes = "Bearer")]
         [HttpGet("menuList")]
         public async Task<IActionResult> MenuList()
         {
-            string token = Request.Headers["Authorization"];
-            if (string.IsNullOrEmpty(token))
+            try
             {
-                return NotFound("token为空");
-            }
-            token = token.Replace("Bearer ", null);
-            var jwtHandler = new JwtSecurityTokenHandler();
-            // token校验
-            if (!jwtHandler.CanReadToken(token))
-            {
-                return BadRequest();
-            }
-            JwtSecurityToken jwtToken = jwtHandler.ReadJwtToken(token);
-            var claims = jwtToken.Claims.ToDictionary(x => x.Type);
-            var issuer = claims.Where(x => x.Key == "iss").FirstOrDefault().Value.Issuer;
-            //获取用户
-            var user = await _userManager.FindByNameAsync(issuer);
-            if (user == null)
-            {
-                return NotFound("查询用户失败");
-            }
-            List<MenuDataListDto> menuDataListDtos = new List<MenuDataListDto>();
-            //获取用户的claim
-            var claimList = _dbContext.UserClaims.Where(x => x.UserId == user.Id)
-                .OrderBy(x => x.ParentClaimId)
-                .ToList()
-                .GroupBy(x => new { x.ParentClaimId, x.ParentClaim });
-            foreach (var claim in claimList)
-            {
-                MenuDataListDto menuDataListDto = new MenuDataListDto
+                string token = Request.Headers["Authorization"];
+                if (string.IsNullOrEmpty(token))
                 {
-                    Id = claim.Key.ParentClaimId,
-                    Name = claim.Key.ParentClaim,
-                    Children = new List<Children>()
-                };
-                foreach (var item in claim)
-                {
-                    var children = new Children()
-                    {
-                        Id = item.Id,
-                        Name = item.ClaimValue,
-                        Path = "/" + item.ClaimType
-                    };
-                    menuDataListDto.Children.Add(children);
+                    return NotFound("token为空");
                 }
-                menuDataListDtos.Add(menuDataListDto);
+                // 去掉Bearer
+                token = token.Replace("Bearer ", null);
+                var jwtHandler = new JwtSecurityTokenHandler();
+                JwtSecurityToken jwtToken = jwtHandler.ReadJwtToken(token);
+                // token校验
+                if (!jwtHandler.CanReadToken(token))
+                {
+                    return BadRequest("令牌不正确");
+                }
+                //jwt签名
+                string secret = _configuration["JwtTokenManagement:Secret"];
+                //颁发者
+                string issuer = _configuration["JwtTokenManagement:Issuer"];
+                //接收者
+                string audience = _configuration["JwtTokenManagement:Audience"];
+                // 验证令牌
+                var validationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = issuer, // 替换为令牌中使用的发行者
+                    ValidAudience = audience, // 替换为令牌中使用的受众
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret))
+                };
+                var principal = jwtHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
+                if (!principal.Identity.IsAuthenticated)
+                {
+                    return BadRequest("验证失败");
+                }
+                // 获取用户名（ClaimTypes.Name）
+                var userName = principal.FindFirst(ClaimTypes.Name);
+                //获取用户
+                var user = await _userManager.FindByNameAsync(userName?.Value);
+                if (user == null)
+                {
+                    return NotFound("查询用户失败");
+                }
+                List<MenuDataListDto> menuDataListDtos = new List<MenuDataListDto>();
+                //获取用户的claim
+                var userClaimList = await _dbContext.UserClaims
+                    .Where(x => x.UserId == user.Id)
+                    .Select(x => new ClaimsData()
+                    {
+                        Id = x.Id,
+                        ParentClaimId = x.ParentClaimId,
+                        ParentClaim = x.ParentClaim,
+                        ClaimType = x.ClaimType,
+                        ClaimValue = x.ClaimValue,
+                    })
+                    .ToListAsync();
+
+                //获取多个角色
+                var rolesList = await _dbContext.UserRoles
+                    .Where(x => x.UserId == user.Id)
+                    .Select(x => x.RoleId).ToListAsync();
+
+                // 根据角色获取权限
+                var roleClaimTypes = await _dbContext.RoleClaims.
+                    Where(x => rolesList.Contains(x.RoleId))
+                    .Select(x => x.ClaimType).ToListAsync();
+
+                var roleClaimList = claimsList.Where(x => roleClaimTypes.Contains(x.ClaimType)).ToList();
+                //合并权限
+                userClaimList.AddRange(roleClaimList);
+                // 先分组去重，在分组加载
+                var claims = userClaimList.GroupBy(x => new
+                {
+                    x.ParentClaimId,
+                    x.ParentClaim,
+                    x.ClaimType,
+                    x.ClaimValue
+                }).Select(x => x.First())
+                  .OrderBy(x => x.ParentClaimId)
+                  .ToList()
+                  .GroupBy(x => new { x.ParentClaimId, x.ParentClaim });
+
+                foreach (var claim in claims)
+                {
+                    MenuDataListDto menuDataListDto = new MenuDataListDto
+                    {
+                        Id = claim.Key.ParentClaimId.Value,
+                        Name = claim.Key.ParentClaim,
+                        Children = new List<Children>()
+                    };
+                    foreach (var item in claim)
+                    {
+                        var children = new Children()
+                        {
+                            Id = item.Id.Value,
+                            Name = item.ClaimValue,
+                            Path = "/" + item.ClaimType
+                        };
+                        menuDataListDto.Children.Add(children);
+                    }
+                    menuDataListDtos.Add(menuDataListDto);
+                }
+                return Ok(menuDataListDtos);
             }
-            return Ok(menuDataListDtos);
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
         }
     }
 }

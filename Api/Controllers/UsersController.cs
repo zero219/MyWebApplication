@@ -242,21 +242,29 @@ namespace Api.Controllers
         [HttpGet("users/{userId}/claims", Name = nameof(UserToClaims))]
         public async Task<IActionResult> UserToClaims([FromRoute] string userId)
         {
-            //查询当前用户
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user == null)
+            try
             {
-                return BadRequest();
-            }
-            var userClaims = _dbContext.UserClaims
-                .Where(uc => uc.UserId == userId)
-                .Select(uc => new ApplicationUserClaim
+                //查询当前用户
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
                 {
-                    Id = uc.Id,
-                    ClaimValue = uc.ClaimValue
-                })
-                .ToList();
-            return Ok(userClaims);
+                    return BadRequest();
+                }
+                var userClaims = _dbContext.UserClaims
+                    .Where(uc => uc.UserId == userId)
+                    .ToList()
+                    .Select(uc => new
+                    {
+                        Id = claimsList.Where(x => x.ClaimValue == uc.ClaimValue).FirstOrDefault().Id.Value,
+                        Label = uc.ClaimValue
+                    });
+                return Ok(userClaims);
+            }
+            catch (Exception ex)
+            {
+
+                throw new Exception(ex.Message);
+            }
         }
 
         /// <summary>
@@ -288,7 +296,6 @@ namespace Api.Controllers
                 }
                 claimsTreeDtos.Add(claimsTreeDto);
             }
-
             return Ok(claimsTreeDtos);
         }
 
@@ -313,13 +320,13 @@ namespace Api.Controllers
                 List<ApplicationUserClaim> userClaimsList = new List<ApplicationUserClaim>();
                 foreach (var claim in userAddToClaimDto.Claims)
                 {
+                    var claimsData = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault();
                     var applicationUserClaim = new ApplicationUserClaim();
-                    applicationUserClaim.Id = claim.Id;
-                    applicationUserClaim.ParentClaimId = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault().ParentClaimId;
-                    applicationUserClaim.ParentClaim = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault().ParentClaim;
+                    applicationUserClaim.ParentClaimId = claimsData?.ParentClaimId;
+                    applicationUserClaim.ParentClaim = claimsData?.ParentClaim;
                     applicationUserClaim.UserId = user.Id;
-                    applicationUserClaim.ClaimType = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault().ClaimType.ToString();
-                    applicationUserClaim.ClaimValue = claim.Label;
+                    applicationUserClaim.ClaimType = claimsData?.ClaimType.ToString();
+                    applicationUserClaim.ClaimValue = claimsData?.ClaimValue.ToString();
                     userClaimsList.Add(applicationUserClaim);
                 }
                 // 开始事务
