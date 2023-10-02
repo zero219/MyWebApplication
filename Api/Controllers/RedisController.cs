@@ -19,8 +19,10 @@ namespace Api.Controllers
 {
     [Route("api")]
     [ApiController]
-    public class RedisController : CustomBase<RedisController>
+    public class RedisController : ControllerBase
     {
+        private readonly IRedisCacheManager _redisCacheManager;
+        private readonly ILogger<RedisController> _logger;
         private readonly ICompanyService _companyService;
         private readonly ISeckillVoucherService _seckillVoucherService;
         private readonly ISignService _signService;
@@ -32,8 +34,10 @@ namespace Api.Controllers
             ISignService signService,
             ISeckillVoucherService seckillVoucherService,
             IFollowService followService,
-            IMapper mapper) : base(logger, redisCacheManager)
+            IMapper mapper)
         {
+            _logger = logger;
+            _redisCacheManager = redisCacheManager;
             _companyService = companyService ?? throw new ArgumentNullException(nameof(companyService));
             _seckillVoucherService = seckillVoucherService ?? throw new ArgumentNullException(nameof(seckillVoucherService));
             _signService = signService ?? throw new ArgumentNullException(nameof(signService));

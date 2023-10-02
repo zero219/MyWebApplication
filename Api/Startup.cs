@@ -32,6 +32,7 @@ using Microsoft.AspNetCore.Identity;
 using Common.IdentityAuth;
 using Microsoft.AspNetCore.Authorization;
 using Bll;
+using Common.Middleware;
 
 namespace Api
 {
@@ -49,6 +50,9 @@ namespace Api
         public void ConfigureServices(IServiceCollection services)
         {
             Console.WriteLine("执行顺序ConfigureServices");
+
+            // 注册自定义异常捕捉中间件
+            services.AddTransient<ExceptionHandlingMiddleware>();
 
             #region 响应缓存,框架自带的,会被ETAG覆盖,然并卵.
             //框架自带当做例子
@@ -333,21 +337,9 @@ namespace Api
             {
                 app.UseDeveloperExceptionPage();
             }
-            else
-            {
-                //处理服务器故障
-                app.UseExceptionHandler(appBuilder =>
-                {
-                    appBuilder.Run(async context =>
-                    {
-                        context.Response.StatusCode = 500;
-                        await context.Response.WriteAsync("Unexpected Error!");
-                    });
-                });
-            }
 
-
-
+            // 自定义中间件，用于捕捉全局异常
+            app.UseMiddleware<ExceptionHandlingMiddleware>();
 
             #region Swagger
             //启用Swagger中间件

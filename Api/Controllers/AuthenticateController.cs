@@ -27,8 +27,12 @@ namespace Api.Controllers
     [Route("api/auth")]
     [ApiController]
 
-    public class AuthenticateController : CustomBase<AuthenticateController>
+    public class AuthenticateController : ControllerBase
     {
+        private readonly IRedisCacheManager _redisCacheManager;
+
+        private readonly ILogger<AuthenticateController> _logger;
+
         private readonly IConfiguration _configuration;
         /// <summary>
         /// 用户储存帮助类
@@ -42,14 +46,17 @@ namespace Api.Controllers
         private readonly RoleManager<ApplicationRole> _roleManager;
 
         private readonly RoutineDbContext _dbContext;
+        
         public AuthenticateController(IConfiguration configuration,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
             RoleManager<ApplicationRole> roleManager,
             RoutineDbContext dbContext,
             ILogger<AuthenticateController> logger,
-            IRedisCacheManager redisCacheManager) : base(logger, redisCacheManager)
+            IRedisCacheManager redisCacheManager)
         {
+            _logger = logger;
+            _redisCacheManager = redisCacheManager;
             _configuration = configuration;
             _userManager = userManager;
             _signInManager = signInManager;
