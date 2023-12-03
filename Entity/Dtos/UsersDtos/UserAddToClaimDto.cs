@@ -21,6 +21,11 @@ namespace Entity.Dtos.UsersDtos
         public string Label { get; set; }
     }
 
+    public class MenuData
+    {
+        public List<ClaimsData> ClaimsData { get; set; }
+    }
+
     public class ClaimsData
     {
         public int? Id { get; set; }

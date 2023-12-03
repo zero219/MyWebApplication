@@ -22,25 +22,26 @@ namespace Api.Controllers
     [ApiController]
     public class UsersController : ControllerBase
     {
+        private readonly IConfiguration _configuration;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly RoutineDbContext _dbContext;
 
-        private List<ClaimsData> claimsList = new List<ClaimsData>() {
-          new ClaimsData  { Id=1, ParentClaimId=1, ParentClaim="用户管理", ClaimType ="Users", ClaimValue="用户列表" },
-          new ClaimsData  { Id=2, ParentClaimId=2, ParentClaim="角色管理", ClaimType ="Roles", ClaimValue="角色列表" },
-          new ClaimsData  { Id=3, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Companies", ClaimValue="公司列表" },
-          new ClaimsData  { Id=4, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Employees", ClaimValue="员工列表" },
-        };
-
         public UsersController(
+            IConfiguration configuration,
             UserManager<ApplicationUser> userManager,
             RoleManager<ApplicationRole> roleManager,
             RoutineDbContext dbContext)
         {
+            _configuration = configuration;
             _userManager = userManager;
             _roleManager = roleManager;
             _dbContext = dbContext;
+        }
+        private List<ClaimsData> GetClaimsData()
+        {
+            var claimsData = _configuration.GetSection("MenuData").Get<MenuData>()?.ClaimsData;
+            return claimsData ?? new List<ClaimsData>();
         }
 
         /// <summary>
@@ -255,7 +256,7 @@ namespace Api.Controllers
                     .ToList()
                     .Select(uc => new
                     {
-                        Id = claimsList.Where(x => x.ClaimValue == uc.ClaimValue).FirstOrDefault().Id.Value,
+                        Id = GetClaimsData().Where(x => x.ClaimValue == uc.ClaimValue).FirstOrDefault().Id.Value,
                         Label = uc.ClaimValue
                     });
                 return Ok(userClaims);
@@ -274,7 +275,7 @@ namespace Api.Controllers
         [HttpGet("claimsTree", Name = nameof(GetClaimsTree))]
         public IActionResult GetClaimsTree()
         {
-            var claimList = claimsList.OrderBy(x => x.ParentClaimId).ToList()
+            var claimList = GetClaimsData().OrderBy(x => x.ParentClaimId).ToList()
                 .GroupBy(x => new { x.ParentClaimId, x.ParentClaim });
             List<ClaimsTreeDto> claimsTreeDtos = new List<ClaimsTreeDto>();
             foreach (var claim in claimList)
@@ -320,7 +321,7 @@ namespace Api.Controllers
                 List<ApplicationUserClaim> userClaimsList = new List<ApplicationUserClaim>();
                 foreach (var claim in userAddToClaimDto.Claims)
                 {
-                    var claimsData = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault();
+                    var claimsData = GetClaimsData().Where(x => x.ClaimValue == claim.Label).FirstOrDefault();
                     var applicationUserClaim = new ApplicationUserClaim();
                     applicationUserClaim.ParentClaimId = claimsData?.ParentClaimId;
                     applicationUserClaim.ParentClaim = claimsData?.ParentClaim;

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,20 +20,21 @@ namespace Api.Controllers
     [Authorize(AuthenticationSchemes = "Bearer", Roles = "管理员", Policy = "角色管理")]
     public class RolesController : ControllerBase
     {
+        private readonly IConfiguration _configuration;
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly RoutineDbContext _dbContext;
-        private List<ClaimsData> claimsList = new List<ClaimsData>() {
-          new ClaimsData  { Id=1, ParentClaimId=1, ParentClaim="用户管理", ClaimType ="Users", ClaimValue="用户列表" },
-          new ClaimsData  { Id=2, ParentClaimId=2, ParentClaim="角色管理", ClaimType ="Roles", ClaimValue="角色列表" },
-          new ClaimsData  { Id=3, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Companies", ClaimValue="公司列表" },
-          new ClaimsData  { Id=4, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Employees", ClaimValue="员工列表" },
-        };
-        public RolesController(RoleManager<ApplicationRole> roleManager, RoutineDbContext dbContext)
+
+        public RolesController(IConfiguration configuration, RoleManager<ApplicationRole> roleManager, RoutineDbContext dbContext)
         {
+            _configuration = configuration;
             _roleManager = roleManager;
             _dbContext = dbContext;
         }
-
+        private List<ClaimsData> GetClaimsData()
+        {
+            var claimsData = _configuration.GetSection("MenuData").Get<MenuData>()?.ClaimsData;
+            return claimsData ?? new List<ClaimsData>();
+        }
         /// <summary>
         /// 查询角色
         /// </summary>
@@ -81,7 +83,7 @@ namespace Api.Controllers
             var roleClaims = await _dbContext.RoleClaims.Where(c => c.RoleId == role.Id).ToListAsync();
             var roleClaimsTree = roleClaims.Select(rc => new
             {
-                Id = claimsList.Where(x => x.ClaimValue == rc.ClaimValue).FirstOrDefault().Id.Value,
+                Id = GetClaimsData().Where(x => x.ClaimValue == rc.ClaimValue).FirstOrDefault().Id.Value,
                 Label = rc.ClaimValue
             });
             return Ok(roleClaimsTree);
@@ -178,7 +180,7 @@ namespace Api.Controllers
                 List<ApplicationRoleClaim> roleClaimsList = new List<ApplicationRoleClaim>();
                 foreach (var claim in roleClaims.Claims)
                 {
-                    var claimsData = claimsList.Where(x => x.ClaimValue == claim.Label).FirstOrDefault();
+                    var claimsData = GetClaimsData().Where(x => x.ClaimValue == claim.Label).FirstOrDefault();
                     ApplicationRoleClaim application = new ApplicationRoleClaim();
                     application.RoleId = role.Id;
                     application.ClaimType = claimsData?.ClaimType;
