@@ -316,18 +316,57 @@ links是核心,href包含url、rel描述资源和url的关系、method表示url�
 ```
 
 # Media Type
-格式:application/vnd.mycompany.hateoas+json  
-vnd:供应商缩写  
-mycompany:供应商标识，某某公司名称  
-hateoas:媒体类型名称  
-json:json格式  
+### 格式解析:   
+例: `application/vnd.mycompany.hateoas+json`   
+vnd: 供应商缩写  
+mycompany: 供应商标识，某某公司名称  
+hateoas: 媒体类型名称  
+json: json格式  
 
-# 输入Vendor-specific media type(供应商特定媒体类型)
+## 输入Vendor-specific media type(供应商特定媒体类型)
+- HTTP请求头部输入`Accept:application/vnd.company.friendly+json`  
+  
+- ASP.NET Core中全局注册`application/vnd.company.friendly+json`<b>Media Type</b>格式  
+```csharp
+public void ConfigureServices(IServiceCollection services){
+            services.Configure<MvcOptions>(config =>{
+                var newtonSoftJsonOutputFormatter = config.OutputFormatters.OfType<NewtonsoftJsonOutputFormatter>()?.FirstOrDefault();
+                newtonSoftJsonOutputFormatter?.SupportedMediaTypes.Add("application/vnd.company.friendly+json");
+            });
+}
+```
+## 输出Vendor-specific media type(供应商特定媒体类型)
+- HTTP请求头部输入`Content-Type:application/json`
 
-# 输出Vendor-specific media type(供应商特定媒体类型)
+### 总结
+```
+Content-Type 和 Accept 是 HTTP 请求和响应头中的两个关键字段，它们用于指定请求中发送的数据类型和响应中返回的数据类型。
 
+Content-Type（请求头）：
+作用： 它告诉服务器实际发送的数据是什么类型。
+示例： 当你通过 POST 请求向服务器提交表单数据时，可以使用 
+Content-Type: application/x-www-form-urlencoded 或 Content-Type: multipart/form-data 来指定数据格式。
 
-# 缓存
+常见值：
+application/json: 用于指定请求或响应中的数据是 JSON 格式。
+application/x-www-form-urlencoded: 用于指定表单数据的传递方式。
+multipart/form-data: 用于指定表单数据的传递方式，支持传递文件。
+
+Accept（请求头）：
+作用： 它告诉服务器客户端期望接收的响应数据类型。
+示例： 如果客户端只能处理 JSON 格式的数据，可以在请求头中添加 Accept: application/json。
+常见值：
+application/json: 表示客户端期望接收 JSON 格式的数据。
+text/html: 表示客户端期望接收 HTML 格式的数据。
+application/xml: 表示客户端期望接收 XML 格式的数据。
+
+总结：
+Content-Type 用于指定请求中发送的数据类型。
+Accept 用于指定客户端期望接收的响应数据类型。
+在实际应用中，这两者的配合可以确保客户端和服务器之间正确地处理请求和响应的数据格式，以确保有效的通信。
+```
+
+# HTTP缓存
 .net core自带的响应缓存  
 https://docs.microsoft.com/zh-cn/aspnet/core/performance/caching/middleware?view=aspnetcore-5.0  
 ***例子在EmployeesController中***

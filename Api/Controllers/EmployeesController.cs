@@ -39,9 +39,9 @@ namespace Api.Controllers
         /// <returns></returns>
         [HttpGet("companies/{companyId}/employees", Name = nameof(GetEmployees))]
         [Produces("application/json",
-            "application/vnd.company.hateoas+json",
-            "application/vnd.company.company.full+json",
-            "application/vnd.company.company.full.hateoas+json")]
+            "application/vnd.company.employees.hateoas+json",
+            "application/vnd.company.employees.full+json",
+            "application/vnd.company.employees.full.hateoas+json")]
         //框架自带的响应缓存,但会被ETAG覆盖,然并卵.
         [ResponseCache(Duration = 60)]
         public async Task<ActionResult<IEnumerable<EmployeeDto>>> GetEmployees([FromHeader(Name = "Accept")] string mediaType, Guid companyId)

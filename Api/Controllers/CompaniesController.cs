@@ -57,7 +57,7 @@ namespace Api.Controllers
         [HttpHead("companies")]
         //局部注册Accept的MediaType
         [Produces("application/json",
-            "application/vnd.company.hateoas+json",
+            "application/vnd.company.company.hateoas+json",
             "application/vnd.company.company.full+json",
             "application/vnd.company.company.full.hateoas+json")]
         //ETAG缓存过期模型
@@ -215,10 +215,9 @@ namespace Api.Controllers
         /// <returns></returns>
         [HttpPost("company", Name = nameof(CreateCompany))]
         //自定义Content-Type的Media Type,这个有bug,未研究...
-        [RequestHeaderMatchesMediaType("Content-Type", "application/json",
-            "application/vnd.company.companyforcreation+json")]
+        [RequestHeaderMatchesMediaType("Content-Type", "application/json", "application/vnd.company.companyforcreation+json")]
         //消耗Media Type
-        [Consumes("application/json", "application/vnd.company.companyforcreation+json")]
+        [Consumes("application/json", "application/vnd.company.create+json")]
         public async Task<ActionResult<CompanyDto>> CreateCompany(CompanyAddDto companyAddDto)
         {
             //转换

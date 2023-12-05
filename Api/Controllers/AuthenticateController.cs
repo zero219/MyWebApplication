@@ -65,12 +65,15 @@ namespace Api.Controllers
 
         }
 
-        private List<ClaimsData> claimsList = new List<ClaimsData>() {
-          new ClaimsData  { Id=1, ParentClaimId=1, ParentClaim="用户管理", ClaimType ="Users", ClaimValue="用户列表" },
-          new ClaimsData  { Id=2, ParentClaimId=2, ParentClaim="角色管理", ClaimType ="Roles", ClaimValue="角色列表" },
-          new ClaimsData  { Id=3, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Companies", ClaimValue="公司列表" },
-          new ClaimsData  { Id=4, ParentClaimId=3, ParentClaim="员工管理", ClaimType ="Employees", ClaimValue="员工列表" },
-        };
+        /// <summary>
+        /// 获取配置文件数据
+        /// </summary>
+        /// <returns></returns>
+        private List<ClaimsData> GetClaimsData()
+        {
+            var claimsData = _configuration.GetSection("MenuData").Get<MenuData>()?.ClaimsData;
+            return claimsData ?? new List<ClaimsData>();
+        }
 
         /// <summary>
         /// 注册
@@ -273,7 +276,7 @@ namespace Api.Controllers
                     Where(x => rolesList.Contains(x.RoleId))
                     .Select(x => x.ClaimType).ToListAsync();
 
-                var roleClaimList = claimsList.Where(x => roleClaimTypes.Contains(x.ClaimType)).ToList();
+                var roleClaimList = GetClaimsData().Where(x => roleClaimTypes.Contains(x.ClaimType)).ToList();
                 //合并权限
                 userClaimList.AddRange(roleClaimList);
                 // 先分组去重，在分组加载

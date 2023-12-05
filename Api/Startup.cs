@@ -114,15 +114,6 @@ namespace Api
                  };
              });
 
-            #region 全局注册Aceept:application/vdn.company.hateoas+json的Media Type
-            services.Configure<MvcOptions>(config =>
-            {
-                var newtonSoftJsonOutputFormatter = config.OutputFormatters.OfType<NewtonsoftJsonOutputFormatter>()?.FirstOrDefault();
-                newtonSoftJsonOutputFormatter?.SupportedMediaTypes.Add("application/vnd.company.friendly+json");
-
-            });
-            #endregion
-
             #region 添加jwt验证
             services.AddAuthentication(x =>
             {
@@ -198,7 +189,7 @@ namespace Api
                 options.AddPolicy("SystemOrAdmin", policy => policy.RequireRole("Admin", "System"));//或的关系
                 options.AddPolicy("SystemAndAdmin", policy => policy.RequireRole("Admin").RequireRole("System"));//且的关系
                 //基于Claims的策略
-                options.AddPolicy("公司管理", policy => policy.RequireClaim("公司列表"));
+                options.AddPolicy("公司管理", policy => policy.RequireClaim("Companies"));
                 options.AddPolicy("员工管理", policy => policy.RequireClaim("Employees", "员工列表"));
                 //这样写有点sb，只不过知道可以这样写，但是jwt中不支持这种的claims没有List<string>
                 options.AddPolicy("用户管理", policy => policy.RequireClaim("Users", new List<string> { "用户列表" }.First().ToString()));
