@@ -367,17 +367,51 @@ Accept 用于指定客户端期望接收的响应数据类型。
 ```
 
 # HTTP缓存
-.net core自带的响应缓存  
+### .net core自带的响应缓存  
 https://docs.microsoft.com/zh-cn/aspnet/core/performance/caching/middleware?view=aspnetcore-5.0  
-***例子在EmployeesController中***
 
-# 支持ETAG缓存
+##### Startup.cs中注册
+```c#
+
+ public void ConfigureServices(IServiceCollection services)
+ {
+     // 注册ResponseCaching缓存
+     services.AddResponseCaching();
+     services.AddControllers(setup =>
+     {
+          #region 全局设置响应缓存过期时间
+          setup.CacheProfiles.Add("CacheProfileKey", new CacheProfile
+          {
+              Duration = 120
+          });
+          #endregion
+     });
+ }
+
+ public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+ {
+    // 添加ResponseCaching中间件
+    app.UseResponseCaching();
+ }
+```
+
+##### Controller或者Action上使用
+```c#
+// Duration:过期时间;CacheProfileName注册时的key
+// 如果全局注册了该缓存，又在Controller或者Action上使用，则过期时间会被后者覆盖
+[ResponseCache(Duration = 60,CacheProfileName = "CacheProfileKey")]
+```
+添加完以后可以看到HTTP返回带有Cache-Control这个属性;  
+![如图](Images/Snipaste_2023-12-06_22-04-56.png)
+<font color="red">经过调试是没有缓存到的，可能只是为了添加Cache-Control这个属性，当个例子学习下吧！！！</font>
+
+### 支持ETAG缓存
 查看请求头中的指定:https://datatracker.ietf.org/doc/html/rfc7234#section-5.2
 
-# 悲观并发控制
+### 悲观并发控制
 锁定当前客户端,只有当前客户端可以修改;但是因为REST有无状态约束,所以无法操作
 
-# 乐观并发控制
+### 乐观并发控制
 当前客户端得到一个token,携带当前token去更新资源;
 只要这个token是合理有效,那么当前用户就可以一直更新资源;
 这个token就是一个验证器,而且要求是强验证器,例如ETAG.
