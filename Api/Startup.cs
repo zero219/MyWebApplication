@@ -54,13 +54,11 @@ namespace Api
             // 注册自定义异常捕捉中间件
             services.AddTransient<ExceptionHandlingMiddleware>();
 
-            #region 响应缓存,框架自带的,会被ETAG覆盖,然并卵.
-            //框架自带当做例子
+            #region 注册响应缓存
             services.AddResponseCaching();
             #endregion
 
             #region 全局注册ETAG缓存
-            //ETAG会覆盖掉框架中的缓存
             services.AddHttpCacheHeaders(expires =>//过期模型
             {
                 //过期时间
@@ -80,7 +78,7 @@ namespace Api
                 //开启请求格式不一致时，返回406状态码
                 setup.ReturnHttpNotAcceptable = true;
 
-                #region 全局设置响应缓存过期时间,会被ETAG覆盖,然并卵.
+                #region 全局设置ResponseCaching响应缓存过期时间
                 setup.CacheProfiles.Add("CacheProfileKey", new CacheProfile
                 {
                     Duration = 120
@@ -332,6 +330,14 @@ namespace Api
             // 自定义中间件，用于捕捉全局异常
             app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+            #region ETAG缓存中间件
+            app.UseHttpCacheHeaders();
+            #endregion
+            
+            #region 响应缓存中间件
+            app.UseResponseCaching();
+            #endregion
+
             #region Swagger
             //启用Swagger中间件
             app.UseSwagger();
@@ -346,14 +352,6 @@ namespace Api
             });
             #endregion
 
-            #region 响应缓存中间件,会被ETAG覆盖,然并卵.
-            //此中间件没有验证ETAG,只是实验例子
-            app.UseResponseCaching();
-            #endregion
-
-            #region ETAG缓存中间件
-            //app.UseHttpCacheHeaders();
-            #endregion
             //路由中间件
             app.UseRouting();
 

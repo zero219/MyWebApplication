@@ -395,18 +395,55 @@ https://docs.microsoft.com/zh-cn/aspnet/core/performance/caching/middleware?view
  }
 ```
 
+##### 必须在Controller或者Action上使用才生效
+```c#
+// CacheProfileName注册时的key,而且必须与之对应; Duration:过期时间;
+// 局部添加过期时间会覆盖前者
+[ResponseCache(CacheProfileName = "CacheProfileKey", Duration = 60)]
+```
+添加完以后可以看到HTTP返回带有Cache-Control这个属性；并且第二次有Age这个属性，它表示已缓存的时间  
+![如图](Images/Snipaste_2023-12-08_20-37-25.png)
+<font color="red">注：使用该缓存时，只有响应状态码为200的Get或者Head请求才可能被缓存，如果请求的Headers中携带了`Authorization`、`Set-Cookie`,直接导致缓存失效。这玩意有点拉闸呀，有时间在研究吧。</font>
+
+### ETAG验证模型
+查看请求头中的指定:https://datatracker.ietf.org/doc/html/rfc7234#section-5.2
+
+##### Startup.cs中注册
+```c#
+ public void ConfigureServices(IServiceCollection services)
+ {
+     // 全局注册
+     services.AddHttpCacheHeaders(expires =>//过期模型
+            {
+                //过期时间
+                expires.MaxAge = 120;
+                //私有的
+                expires.CacheLocation = CacheLocation.Private;
+            },
+            validation =>//验证模型
+            {
+                //响应过期必须重新验证
+                validation.MustRevalidate = true;
+            });
+ }
+
+ public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+ {
+    // 添加中间件,与ResponseCache结合使用时必须在前面
+    app.UseHttpCacheHeaders();
+    app.UseResponseCache();
+ }
+```
 ##### Controller或者Action上使用
 ```c#
-// Duration:过期时间;CacheProfileName注册时的key
-// 如果全局注册了该缓存，又在Controller或者Action上使用，则过期时间会被后者覆盖
-[ResponseCache(Duration = 60,CacheProfileName = "CacheProfileKey")]
+ // 如果全局注册了该缓存，又在Controller或者Action上使用，则过期时间会被后者覆盖
+ //ETAG缓存过期模型
+ [HttpCacheExpiration(CacheLocation = CacheLocation.Public, MaxAge = 60)]
+ //ETAG缓存验证模型
+ [HttpCacheValidation(MustRevalidate = true)]
 ```
-添加完以后可以看到HTTP返回带有Cache-Control这个属性;  
-![如图](Images/Snipaste_2023-12-06_22-04-56.png)
-<font color="red">经过调试是没有缓存到的，可能只是为了添加Cache-Control这个属性，当个例子学习下吧！！！</font>
-
-### 支持ETAG缓存
-查看请求头中的指定:https://datatracker.ietf.org/doc/html/rfc7234#section-5.2
+相比于框架自带的，多了四个属性 
+![如图](Images/Snipaste_2023-12-07_22-58-07.png)
 
 ### 悲观并发控制
 锁定当前客户端,只有当前客户端可以修改;但是因为REST有无状态约束,所以无法操作
@@ -417,7 +454,7 @@ https://docs.microsoft.com/zh-cn/aspnet/core/performance/caching/middleware?view
 这个token就是一个验证器,而且要求是强验证器,例如ETAG.
 
 请求头中使用
-If-Match ETAG验证器
+`If-Match`、`If-None-Match` ETAG验证器
 
 # Jwt
 网址:https://jwt.io/

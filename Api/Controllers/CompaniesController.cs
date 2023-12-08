@@ -61,9 +61,12 @@ namespace Api.Controllers
             "application/vnd.company.company.full+json",
             "application/vnd.company.company.full.hateoas+json")]
         //ETAG缓存过期模型
-        [HttpCacheExpiration(CacheLocation = CacheLocation.Public, MaxAge = 1)]
+        [HttpCacheExpiration(CacheLocation = CacheLocation.Public, MaxAge = 60)]
         //ETAG缓存验证模型
         [HttpCacheValidation(MustRevalidate = true)]
+        // ASP.NET自带缓存
+        [ResponseCache(CacheProfileName = "CacheProfileKey", Duration = 60)]
+
         public async Task<ActionResult> GetCompanies([FromHeader(Name = "Accept")] string mediaType, [FromQuery] CompanyParameters parameters)
         {
 

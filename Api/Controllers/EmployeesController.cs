@@ -42,8 +42,6 @@ namespace Api.Controllers
             "application/vnd.company.employees.hateoas+json",
             "application/vnd.company.employees.full+json",
             "application/vnd.company.employees.full.hateoas+json")]
-        //框架自带的响应缓存,但会被ETAG覆盖,然并卵.
-        [ResponseCache(Duration = 60)]
         public async Task<ActionResult<IEnumerable<EmployeeDto>>> GetEmployees([FromHeader(Name = "Accept")] string mediaType, Guid companyId)
         {
             if (!await _employeeService.QueryEmployees(p => p.CompanyId == companyId).AnyAsync())
@@ -62,8 +60,6 @@ namespace Api.Controllers
         /// <param name="employeeId">员工ID</param>
         /// <returns></returns>
         [HttpGet("companies/{companyId}/employees/{employeeId}", Name = nameof(GetEmployee))]
-        //框架自带的响应缓存,但会被ETAG覆盖,然并卵.
-        [ResponseCache(CacheProfileName = "CacheProfileKey")]
         public async Task<ActionResult<IEnumerable<EmployeeDto>>> GetEmployee(Guid companyId, Guid employeeId)
         {
             if (!await _employeeService.QueryEmployees(p => p.CompanyId == companyId && p.Id == employeeId).AnyAsync())
