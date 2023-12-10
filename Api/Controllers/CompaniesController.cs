@@ -61,7 +61,7 @@ namespace Api.Controllers
             "application/vnd.company.company.full+json",
             "application/vnd.company.company.full.hateoas+json")]
         //ETAG缓存过期模型
-        [HttpCacheExpiration(CacheLocation = CacheLocation.Public, MaxAge = 60)]
+        [HttpCacheExpiration(CacheLocation = CacheLocation.Private, MaxAge = 60)]
         //ETAG缓存验证模型
         [HttpCacheValidation(MustRevalidate = true)]
         // ASP.NET自带缓存
@@ -91,7 +91,7 @@ namespace Api.Controllers
                 return NotFound();
             }
 
-            var company = await _companyService.QueryPage(parameters);
+            var company =  _companyService.QueryPage(parameters);
 
             #region 分页
             //上一页

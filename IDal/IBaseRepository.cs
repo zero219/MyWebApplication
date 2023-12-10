@@ -37,7 +37,7 @@ namespace IDal
 
         Task<T> TransactionDoAsync<T>(T t, Func<T, Task<T>> func);
 
-        public Task<PageList<TEntity>> GetPageOrderByQuery(int pageNumber, int pageSize, Expression<Func<TEntity, bool>> whereLambda, string orderBy, Dictionary<string, PropertyMappingValue> keyValuePairs);
+        PageList<TEntity> GetPageOrderByQuery(int pageNumber, int pageSize, Expression<Func<TEntity, bool>> whereLambda, string orderBy, Dictionary<string, PropertyMappingValue> keyValuePairs);
 
         bool Save();
 

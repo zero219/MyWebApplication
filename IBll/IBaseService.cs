@@ -29,7 +29,7 @@ namespace IBll
 
         Task<IQueryable<T>> LoadEntitiesAllAsync(string entity);
 
-        Task<PageList<T>> LoadPage(int pageIndex, int pageSize, Expression<Func<T, bool>> whereLambda, string orderby, Dictionary<string, PropertyMappingValue> keyValuePairs);
+        PageList<T> LoadPage(int pageIndex, int pageSize, Expression<Func<T, bool>> whereLambda, string orderby, Dictionary<string, PropertyMappingValue> keyValuePairs);
 
         Dictionary<string, PropertyMappingValue> GetPropertyMapping<TSource, TDestination>();
 

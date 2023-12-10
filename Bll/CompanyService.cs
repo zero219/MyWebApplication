@@ -58,7 +58,7 @@ namespace Bll
         /// </summary>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        public Task<PageList<Company>> QueryPage(CompanyParameters parameters)
+        public PageList<Company> QueryPage(CompanyParameters parameters)
         {
             Dictionary<string, PropertyMappingValue> propertyMapping = GetPropertyMapping<CompanyDto, Company>();
 

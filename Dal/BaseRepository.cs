@@ -158,7 +158,7 @@ namespace Dal
         /// <param name="orderBy"></param>
         /// <param name="keyValuePairs"></param>
         /// <returns></returns>
-        public async Task<PageList<TEntity>> GetPageOrderByQuery(int pageNumber, int pageSize,
+        public PageList<TEntity> GetPageOrderByQuery(int pageNumber, int pageSize,
             Expression<Func<TEntity, bool>> whereLambda, string orderBy,
             Dictionary<string, PropertyMappingValue> keyValuePairs)
         {
@@ -174,7 +174,7 @@ namespace Dal
             }
             //Compile()将表达式树描述的 lambda 表达式编译为可执行代码，并生成表示 lambda 表达式的委托
             //var queryable = _context.Set<TEntity>().Where<TEntity>(whereLambda.Compile()).AsQueryable();
-            var count = await queryable.CountAsync();
+            var count = queryable.Count();
 
             //排序
             if (!string.IsNullOrWhiteSpace(orderBy))
@@ -182,7 +182,7 @@ namespace Dal
                 queryable = queryable.ApplySort(orderBy, keyValuePairs);
             }
             List<TEntity> rows;
-            rows = await queryable.Skip<TEntity>((pageNumber - 1) * pageSize).Take<TEntity>(pageSize).ToListAsync();
+            rows = queryable.Skip<TEntity>((pageNumber - 1) * pageSize).Take<TEntity>(pageSize).ToList();
 
             return new PageList<TEntity>(rows, count, pageNumber, pageSize);
         }

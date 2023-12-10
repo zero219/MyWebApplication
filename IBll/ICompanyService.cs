@@ -15,7 +15,7 @@ namespace IBll
         IQueryable<Company> QueryWhere(Expression<Func<Company, bool>> whereLambda);
 
         IQueryable<Company> QueryAll();
-        Task<PageList<Company>> QueryPage(CompanyParameters parameters);
+        PageList<Company> QueryPage(CompanyParameters parameters);
 
     }
 }

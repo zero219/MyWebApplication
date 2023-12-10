@@ -124,9 +124,9 @@ namespace Bll
         /// <param name="orderby"></param>
         /// <param name="keyValuePairs"></param>
         /// <returns></returns>
-        public async Task<PageList<T>> LoadPage(int pageIndex, int pageSize, Expression<Func<T, bool>> whereLambda, string orderBy, Dictionary<string, PropertyMappingValue> keyValuePairs)
+        public PageList<T> LoadPage(int pageIndex, int pageSize, Expression<Func<T, bool>> whereLambda, string orderBy, Dictionary<string, PropertyMappingValue> keyValuePairs)
         {
-            return await _repository.GetPageOrderByQuery(pageIndex, pageSize, whereLambda, orderBy, keyValuePairs);
+            return _repository.GetPageOrderByQuery(pageIndex, pageSize, whereLambda, orderBy, keyValuePairs);
         }
 
         #region 动态排序
