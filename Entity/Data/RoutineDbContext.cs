@@ -358,6 +358,47 @@ namespace Entity.Data
             });
             #endregion
 
+            #region ApplicationUserToken
+            modelBuilder.Entity<ApplicationUserToken>()
+                .Property(x => x.UserId)
+                .IsRequired()
+                .HasColumnType("varchar(50)")
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<ApplicationUserToken>()
+                .Property(x => x.LoginProvider)
+                .IsRequired()
+                .HasColumnType("varchar(20)")
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<ApplicationUserToken>()
+                .Property(x => x.Name)
+                .IsRequired()
+                .HasColumnType("varchar(50)")
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<ApplicationUserToken>()
+                .Property(x => x.Value)
+                .IsRequired()
+                .HasColumnType("varchar(50)")
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<ApplicationUserToken>()
+                .Property(x => x.Expires)
+                .IsRequired()
+                .HasColumnType("bigint(20)")
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<ApplicationUserToken>().HasData(new ApplicationUserToken
+            {
+                UserId = "ae5d8653-0ce7-4d72-984b-4658dbdac654",
+                LoginProvider = "localhost",
+                Name = "RefreshToken",
+                Value = "A8Bhd0QaJSY45V6CAAEo31/JO5/oC9atCXAHBJdKgjQ=",
+                Expires = 0L
+            });
+            #endregion
+
             #region 修改表名
             //修改表名
             modelBuilder.Entity<ApplicationUser>().ToTable("ApplicationUsers");

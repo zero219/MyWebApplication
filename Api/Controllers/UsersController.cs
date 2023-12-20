@@ -38,16 +38,7 @@ namespace Api.Controllers
             _roleManager = roleManager;
             _dbContext = dbContext;
         }
-        /// <summary>
-        /// 获取配置文件数据
-        /// </summary>
-        /// <returns></returns>
-        private List<ClaimsData> GetClaimsData()
-        {
-            var claimsData = _configuration.GetSection("MenuData").Get<MenuData>()?.ClaimsData;
-            return claimsData ?? new List<ClaimsData>();
-        }
-
+        
         /// <summary>
         /// 获取所有用户
         /// </summary>
@@ -352,6 +343,16 @@ namespace Api.Controllers
                 _dbContext.Database.RollbackTransaction();
                 throw new Exception(e.Message);
             }
+        }
+
+        /// <summary>
+        /// 获取配置文件数据
+        /// </summary>
+        /// <returns></returns>
+        private List<ClaimsData> GetClaimsData()
+        {
+            var claimsData = _configuration.GetSection("MenuData").Get<MenuData>()?.ClaimsData;
+            return claimsData ?? new List<ClaimsData>();
         }
     }
 }

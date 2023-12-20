@@ -106,8 +106,8 @@ namespace Api
                      problemDetails.Extensions.Add("traceId", context.HttpContext.TraceIdentifier);
                      return new UnprocessableEntityObjectResult(problemDetails)
                      {
-                        //返回格式类型
-                        ContentTypes = { "application/problem+json" }
+                         //返回格式类型
+                         ContentTypes = { "application/problem+json" }
                      };
                  };
              });
@@ -259,7 +259,8 @@ namespace Api
                     Description = "JWT授权,下框输入Bearer {token}(注:两者间有一个空格)",
                     Name = "Authorization",
                     In = ParameterLocation.Header,
-                    Type = SecuritySchemeType.ApiKey
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "Bearer"
                 });
                 #endregion
             });
@@ -333,7 +334,7 @@ namespace Api
             #region ETAG缓存中间件
             app.UseHttpCacheHeaders();
             #endregion
-            
+
             #region 响应缓存中间件
             app.UseResponseCaching();
             #endregion

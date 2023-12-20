@@ -21,6 +21,9 @@ using Common.Redis;
 using Microsoft.EntityFrameworkCore;
 using Entity.Data;
 using Entity.Dtos.UsersDtos;
+using Microsoft.Extensions.Caching.Memory;
+using Common.Jwt;
+using System.Linq.Dynamic.Core.Tokenizer;
 
 namespace Api.Controllers
 {
@@ -46,7 +49,7 @@ namespace Api.Controllers
         private readonly RoleManager<ApplicationRole> _roleManager;
 
         private readonly RoutineDbContext _dbContext;
-        
+
         public AuthenticateController(IConfiguration configuration,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
@@ -63,16 +66,6 @@ namespace Api.Controllers
             _roleManager = roleManager;
             _dbContext = dbContext;
 
-        }
-
-        /// <summary>
-        /// 获取配置文件数据
-        /// </summary>
-        /// <returns></returns>
-        private List<ClaimsData> GetClaimsData()
-        {
-            var claimsData = _configuration.GetSection("MenuData").Get<MenuData>()?.ClaimsData;
-            return claimsData ?? new List<ClaimsData>();
         }
 
         /// <summary>
@@ -125,66 +118,106 @@ namespace Api.Controllers
             //接收者
             string audience = _configuration["JwtTokenManagement:Audience"];
 
-            #region header
-            var sig = SecurityAlgorithms.HmacSha256;
-            #endregion
-
-            #region payload
-            //创建一个身份认证
-            var claimsList = new List<Claim>
-            {
-                //sub (subject)：主题
-                new Claim(JwtRegisteredClaimNames.Sub,"Jwt验证"),
-                //jti (JWT ID)：编号,jwt的唯一身份标识，主要用来作为一次性token,从而回避重放攻击
-                new Claim(JwtRegisteredClaimNames.Jti,Guid.NewGuid().ToString()),
-                //iat (Issued At)：jwt的签发时间
-                new Claim(JwtRegisteredClaimNames.Iat,$"{new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds()}"),
-                //nbf (Not Before)：生效时间
-                new Claim(JwtRegisteredClaimNames.Nbf,$"{new DateTimeOffset(DateTime.Now).ToUnixTimeSeconds()}") ,
-                //exp (expiration time)：过期时间，这个过期时间必须要大于签发时间,过期时间1000秒
-                new Claim (JwtRegisteredClaimNames.Exp,$"{new DateTimeOffset(DateTime.Now.AddSeconds(1800)).ToUnixTimeSeconds()}"),
-                //iss (issuer)：签发人
-                new Claim(JwtRegisteredClaimNames.Iss,issuer),
-                //aud (audience)：受众,接收jwt的一方
-                new Claim(JwtRegisteredClaimNames.Aud,audience),
-            };
-            //获取用户
             var user = await _userManager.FindByNameAsync(loginDto.UserName);
-            var userName = new Claim(ClaimTypes.Name, user.UserName);
-            claimsList.Add(userName);
-            //获取角色
-            var roles = await _userManager.GetRolesAsync(user);
-            //多个角色
-            claimsList.AddRange(roles.Select(s => new Claim(ClaimTypes.Role, s)));
-            List<Claim> claims = new List<Claim>();
-            //获取用户的claims
-            var userClaims = await _userManager.GetClaimsAsync(user);
-            //获取角色的claims
-            claims.AddRange(userClaims);
-            foreach (var role in roles)
+            if (user == null)
             {
-                var applicationRole = _roleManager.Roles.Where(x => x.Name == role).FirstOrDefault();
-                var roleClaims = await _roleManager.GetClaimsAsync(applicationRole);
-                claims.AddRange(roleClaims);
+                return BadRequest("查询不到用户");
             }
-            var distinctClaims = claims.Where((x, i) => claims.FindIndex(f => f.Type == x.Type && f.Value == x.Value) == i).ToList();
-            claimsList.AddRange(distinctClaims);
-            #endregion
 
-            #region signiture
-            //秘钥
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
-            //身份验证
-            var creds = new SigningCredentials(key, sig);
-            //创建jwtToken
-            var jwtToken = new JwtSecurityToken(
-                claims: claimsList,
-                signingCredentials: creds);
-            //token转token字符串
-            var tokenStr = new JwtSecurityTokenHandler().WriteToken(jwtToken);
-            #endregion
+            var claim = GetUserInfo(user.Id).Result;
 
-            return Ok("Bearer " + tokenStr);
+            var newAccessToken = JwtHelper.GenerateAccessToken(issuer, audience, secret, claim);
+
+            var newRefreshToken = JwtHelper.GenerateRefreshToken();
+
+            var applicationUserToken = await _dbContext.UserTokens.Where(x => x.UserId == user.Id).FirstOrDefaultAsync();
+            // 过期时间戳
+            var expires = DateTimeOffset.UtcNow.AddSeconds(1800).ToUnixTimeMilliseconds();
+            if (applicationUserToken == null)
+            {
+                ApplicationUserToken userToken = new ApplicationUserToken()
+                {
+                    UserId = user.Id,
+                    LoginProvider = "localhost",
+                    Name = "RefreshToken",
+                    Value = newRefreshToken,
+                    Expires = expires,
+                };
+                await _dbContext.UserTokens.AddAsync(userToken);
+            }
+            else
+            {
+                applicationUserToken.Value = newRefreshToken;
+                applicationUserToken.Expires = expires;
+                _dbContext.UserTokens.Update(applicationUserToken);
+            }
+            await _dbContext.SaveChangesAsync();
+            return Ok(new { accessToken = newAccessToken, refreshToken = newRefreshToken });
+        }
+
+        /// <summary>
+        /// 刷新token
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("refresh")]
+        public async Task<IActionResult> Refresh()
+        {
+            var accessToken = HttpContext.Request.Headers.Authorization.ToString();
+            var refreshToken = HttpContext.Request.Headers["RefreshToken"].ToString();
+            if (string.IsNullOrWhiteSpace(accessToken))
+            {
+                return Unauthorized(new { success = false, msg = "无法获取到AccessToken" });
+            }
+            // 去掉Bearer
+            accessToken = accessToken.Replace("Bearer ", null);
+            //jwt签名
+            string secret = _configuration["JwtTokenManagement:Secret"];
+            //颁发者
+            string issuer = _configuration["JwtTokenManagement:Issuer"];
+            //接收者
+            string audience = _configuration["JwtTokenManagement:Audience"];
+
+            // 验证过期的accessToken
+            var principal = JwtHelper.GetPrincipalFromExpiredToken(accessToken, issuer, audience, secret);
+            // 如果 Refresh Token 无效，返回错误响应
+            if (principal == null)
+            {
+                return Unauthorized(new { success = false, msg = "无效的刷新令牌" });
+            }
+            // 查找用户标识声明
+            var userIdClaim = principal.FindFirst(ClaimTypes.Name)?.Value;
+
+            var user = await _userManager.FindByNameAsync(userIdClaim);
+
+            if (user == null)
+            {
+                return Unauthorized(new { success = false, msg = "查询不到用户" });
+            }
+            // 查询token
+            var applicationUserToken = await _dbContext.UserTokens.Where(x => x.UserId == user.Id && x.Value == refreshToken).FirstOrDefaultAsync();
+
+            if (applicationUserToken == null)
+            {
+                return Unauthorized(new { success = false, msg = "查询不到令牌" });
+            }
+
+            // 验证 Refresh Token 的有效期
+            if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() > applicationUserToken.Expires)
+            {
+                return Unauthorized(new { success = false, msg = "刷新令牌已过期" });
+            }
+
+            // 如果 Refresh Token 有效，生成新的 Access Token 和 Refresh Token
+            var newAccessToken = JwtHelper.GenerateAccessToken(issuer, audience, secret, GetUserInfo(user.Id).Result);
+
+            var newRefreshToken = JwtHelper.GenerateRefreshToken();
+
+            // 更新存储
+            applicationUserToken.Value = newRefreshToken;
+            _dbContext.UserTokens.Update(applicationUserToken);
+            await _dbContext.SaveChangesAsync();
+
+            return Ok(new { accessToken = newAccessToken, refreshToken = newRefreshToken });
         }
 
         /// <summary>
@@ -215,34 +248,17 @@ namespace Api.Controllers
                 }
                 // 去掉Bearer
                 token = token.Replace("Bearer ", null);
-                var jwtHandler = new JwtSecurityTokenHandler();
-                JwtSecurityToken jwtToken = jwtHandler.ReadJwtToken(token);
-                // token校验
-                if (!jwtHandler.CanReadToken(token))
-                {
-                    return BadRequest("令牌不正确");
-                }
                 //jwt签名
                 string secret = _configuration["JwtTokenManagement:Secret"];
                 //颁发者
                 string issuer = _configuration["JwtTokenManagement:Issuer"];
                 //接收者
                 string audience = _configuration["JwtTokenManagement:Audience"];
-                // 验证令牌
-                var validationParameters = new TokenValidationParameters
+
+                var principal = JwtHelper.VerifyToken(token, issuer, audience, secret);
+                if (principal == null)
                 {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = issuer, // 替换为令牌中使用的发行者
-                    ValidAudience = audience, // 替换为令牌中使用的受众
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret))
-                };
-                var principal = jwtHandler.ValidateToken(token, validationParameters, out SecurityToken validatedToken);
-                if (!principal.Identity.IsAuthenticated)
-                {
-                    return BadRequest("验证失败");
+                    return Unauthorized("Token验证不通过");
                 }
                 // 获取用户名（ClaimTypes.Name）
                 var userName = principal.FindFirst(ClaimTypes.Name);
@@ -317,6 +333,48 @@ namespace Api.Controllers
             {
                 throw new Exception(ex.Message);
             }
+        }
+
+        /// <summary>
+        /// 获取配置文件数据
+        /// </summary>
+        /// <returns></returns>
+        private List<ClaimsData> GetClaimsData()
+        {
+            var claimsData = _configuration.GetSection("MenuData").Get<MenuData>()?.ClaimsData;
+            return claimsData ?? new List<ClaimsData>();
+        }
+
+        /// <summary>
+        /// 获取用户信息
+        /// </summary>
+        /// <param name="userId"></param>
+        /// <returns></returns>
+        private async Task<List<Claim>> GetUserInfo(string userId)
+        {
+            var claimsList = new List<Claim>();
+            //获取用户
+            var user = await _userManager.FindByIdAsync(userId);
+            var userNameInfo = new Claim(ClaimTypes.Name, user.UserName);
+            claimsList.Add(userNameInfo);
+            //获取角色
+            var roles = await _userManager.GetRolesAsync(user);
+            //多个角色
+            claimsList.AddRange(roles.Select(s => new Claim(ClaimTypes.Role, s)));
+            List<Claim> claims = new List<Claim>();
+            //获取用户的claims
+            var userClaims = await _userManager.GetClaimsAsync(user);
+            //获取角色的claims
+            claims.AddRange(userClaims);
+            foreach (var role in roles)
+            {
+                var applicationRole = _roleManager.Roles.Where(x => x.Name == role).FirstOrDefault();
+                var roleClaims = await _roleManager.GetClaimsAsync(applicationRole);
+                claims.AddRange(roleClaims);
+            }
+            var distinctClaims = claims.Where((x, i) => claims.FindIndex(f => f.Type == x.Type && f.Value == x.Value) == i).ToList();
+            claimsList.AddRange(distinctClaims);
+            return claimsList;
         }
     }
 }
