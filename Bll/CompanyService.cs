@@ -4,6 +4,7 @@ using Entity.Dtos;
 using Entity.Models;
 using IBll;
 using IDal;
+using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -68,6 +69,48 @@ namespace Bll
             }
             return LoadPage(parameters.pageNumber, parameters.pageSize, x => x.Name == parameters.CompanyName, parameters.orderBy, propertyMapping);
 
+        }
+
+        /// <summary>
+        /// 集合资源超媒体链接
+        /// </summary>
+        /// <param name="fields"></param>
+        /// <returns></returns>
+        public IEnumerable<LinkDto> CreateLinksForCompanies(string fields, IUrlHelper urlHelper, string routeName)
+        {
+            List<LinkDto> linkList = new List<LinkDto>();
+            if (string.IsNullOrWhiteSpace(fields))
+            {
+                linkList.Add(new LinkDto(urlHelper.Link(routeName, new { }), "self", "GET"));
+            }
+            else
+            {
+                linkList.Add(new LinkDto(urlHelper.Link(routeName, new { fields }), "self", "GET"));
+            }
+            return linkList;
+        }
+
+        /// <summary>
+        /// 单个资源超媒体链接
+        /// </summary>
+        /// <param name="companyId"></param>
+        /// <param name="fields"></param>
+        /// <returns></returns>
+        public IEnumerable<LinkDto> CreateLinksForCompany(Guid? companyId, string fields, IUrlHelper urlHelper, string routeName)
+        {
+            List<LinkDto> linkList = new List<LinkDto>();
+            if (string.IsNullOrWhiteSpace(fields))
+            {
+                linkList.Add(new LinkDto(urlHelper.Link(routeName, new { companyId }), "self", "GET"));
+            }
+            else
+            {
+                linkList.Add(new LinkDto(urlHelper.Link(routeName, new { fields }), "self", "GET"));
+            }
+            linkList.Add(new LinkDto(urlHelper.Link(routeName, new { companyId }), "delete_company", "DELETE"));
+            linkList.Add(new LinkDto(urlHelper.Link(routeName, new { companyId }), "company_for_self_employees", "GET"));
+            linkList.Add(new LinkDto(urlHelper.Link(routeName, new { companyId }), "company_for_create_employee", "POST"));
+            return linkList;
         }
     }
 }

@@ -9,7 +9,7 @@ namespace Common.Helpers
     /// 分页数据
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class PageList<T>:List<T>
+    public class PageList<T> : List<T>
     {
         /// <summary>
         /// 当前页数

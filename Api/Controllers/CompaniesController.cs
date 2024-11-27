@@ -91,13 +91,15 @@ namespace Api.Controllers
                 return NotFound();
             }
 
-            var company =  _companyService.QueryPage(parameters);
+            var company = _companyService.QueryPage(parameters);
 
             #region 分页
+            // 帮助类
+            var resourceHelper = new ResourceHelper<CompanyParameters>(Url);
             //上一页
-            var previousPageLink = company.HasPrevious ? ResoureUri(parameters, ResourceUriType.PreviousPage) : null;
+            var previousPageLink = company.HasPrevious ? resourceHelper.ResourceUri(parameters, ResourceUriType.PreviousPage, nameof(GetCompanies)) : null;
             //下一页
-            var nextPageLink = company.HasNext ? ResoureUri(parameters, ResourceUriType.NextPage) : null;
+            var nextPageLink = company.HasNext ? resourceHelper.ResourceUri(parameters, ResourceUriType.NextPage, nameof(GetCompanies)) : null;
 
             var paginationMetadata = new
             {
@@ -138,7 +140,7 @@ namespace Api.Controllers
                         var shapeCompaniesWithLinks = shapeFullData.Select(c =>
                         {
                             var companyDict = c as IDictionary<string, object>;
-                            var companyLinks = CreateLinksForCompanies(parameters.fields);
+                            var companyLinks = _companyService.CreateLinksForCompanies(parameters.fields, Url, nameof(GetCompanies));
                             companyDict.Add("links", companyLinks);
                             return companyDict;
                         });
@@ -146,7 +148,7 @@ namespace Api.Controllers
                         var fullLinkedCollectionResource = new
                         {
                             value = shapeCompaniesWithLinks,
-                            links = CreateLinksForCompany(parameters, company.HasPrevious, company.HasNext)
+                            links = resourceHelper.CreateLinksForRouteNamePaging(parameters, company.HasPrevious, company.HasNext)
                         };
                         return Ok(fullLinkedCollectionResource);
                     }
@@ -162,7 +164,7 @@ namespace Api.Controllers
                     var shapeCompaniesWithLinks = shapeHateoasData.Select(c =>
                     {
                         var companyDict = c as IDictionary<string, object>;
-                        var companyLinks = CreateLinksForCompany((Guid)companyDict["Id"], null);
+                        var companyLinks = _companyService.CreateLinksForCompany((Guid)companyDict["Id"], null, Url, nameof(GetCompanies));
                         companyDict.Add("links", companyLinks);
                         return companyDict;
                     });
@@ -170,7 +172,7 @@ namespace Api.Controllers
                     var linkedCollectionResource = new
                     {
                         value = shapeCompaniesWithLinks,
-                        links = CreateLinksForCompany(parameters, company.HasPrevious, company.HasNext)
+                        links = resourceHelper.CreateLinksForRouteNamePaging(parameters, company.HasPrevious, company.HasNext)
                     };
                     return Ok(linkedCollectionResource);
                 }
@@ -208,7 +210,7 @@ namespace Api.Controllers
             //SingleShapeData单个资源数据塑性
             var shapeData = companyDtos.SingleShapeData(fields) as IDictionary<string, object>;
             //添加超媒体链接
-            shapeData.Add("links", CreateLinksForCompany(companyId, fields));
+            shapeData.Add("links", _companyService.CreateLinksForCompany(companyId, fields, Url, nameof(GetCompanies)));
             return Ok(shapeData);
         }
 
@@ -314,116 +316,6 @@ namespace Api.Controllers
         {
             Response.Headers.Add("Allow", "GET,POST,HEAD,OPTIONS");
             return Ok();
-        }
-
-
-        /// <summary>
-        /// 翻页
-        /// </summary>
-        /// <param name="parameters"></param>
-        /// <param name="resource"></param>
-        /// <returns></returns>
-        private string ResoureUri(CompanyParameters parameters, ResourceUriType resource)
-        {
-            switch (resource)
-            {
-                //上一页
-                case ResourceUriType.PreviousPage:
-                    return Url.Link(nameof(GetCompanies), new
-                    {
-                        fields = parameters.fields,
-                        orderBy = parameters.orderBy,
-                        pageNumber = parameters.pageNumber - 1,
-                        pageSize = parameters.pageSize,
-                        companyName = parameters.CompanyName
-                    });
-                //下一页
-                case ResourceUriType.NextPage:
-                    return Url.Link(nameof(GetCompanies), new
-                    {
-                        fields = parameters.fields,
-                        orderBy = parameters.orderBy,
-                        pageNumber = parameters.pageNumber + 1,
-                        pageSize = parameters.pageSize,
-                        companyName = parameters.CompanyName
-                    });
-                //当前页
-                default:
-                    return Url.Link(nameof(GetCompanies), new
-                    {
-                        fields = parameters.fields,
-                        orderBy = parameters.orderBy,
-                        pageNumber = parameters.pageNumber,
-                        pageSize = parameters.pageSize,
-                        companyName = parameters.CompanyName
-                    });
-            }
-        }
-
-        /// <summary>
-        /// 集合资源超媒体链接
-        /// </summary>
-        /// <param name="fields"></param>
-        /// <returns></returns>
-        private IEnumerable<LinkDto> CreateLinksForCompanies(string fields)
-        {
-            List<LinkDto> linkList = new List<LinkDto>();
-            if (string.IsNullOrWhiteSpace(fields))
-            {
-                linkList.Add(new LinkDto(Url.Link(nameof(GetCompanies), new { }), "self", "GET"));
-            }
-            else
-            {
-                linkList.Add(new LinkDto(Url.Link(nameof(GetCompanies), new { fields }), "self", "GET"));
-            }
-            return linkList;
-        }
-
-        /// <summary>
-        /// 单个资源超媒体链接
-        /// </summary>
-        /// <param name="companyId"></param>
-        /// <param name="fields"></param>
-        /// <returns></returns>
-        private IEnumerable<LinkDto> CreateLinksForCompany(Guid? companyId, string fields)
-        {
-            List<LinkDto> linkList = new List<LinkDto>();
-            if (string.IsNullOrWhiteSpace(fields))
-            {
-                linkList.Add(new LinkDto(Url.Link(nameof(GetCompany), new { companyId }), "self", "GET"));
-            }
-            else
-            {
-                linkList.Add(new LinkDto(Url.Link(nameof(GetCompany), new { fields }), "self", "GET"));
-            }
-            linkList.Add(new LinkDto(Url.Link(nameof(DeleteCompany), new { companyId }), "delete_company", "DELETE"));
-            linkList.Add(new LinkDto(Url.Link(nameof(EmployeesController.GetEmployees), new { companyId }), "company_for_self_employees", "GET"));
-            linkList.Add(new LinkDto(Url.Link(nameof(EmployeesController.CreateEmployee), new { companyId }), "company_for_create_employee", "POST"));
-            return linkList;
-        }
-        /// <summary>
-        /// 超媒体链接加入分页
-        /// </summary>
-        /// <param name="parameters"></param>
-        /// <param name="hasPrevious"></param>
-        /// <param name="hasNext"></param>
-        /// <returns></returns>
-        private IEnumerable<LinkDto> CreateLinksForCompany(CompanyParameters parameters, bool hasPrevious, bool hasNext)
-        {
-            var links = new List<LinkDto>();
-            //当前页
-            links.Add(new LinkDto(ResoureUri(parameters, ResourceUriType.CurrentPage), "self", "GET"));
-            //上一页
-            if (hasPrevious)
-            {
-                links.Add(new LinkDto(ResoureUri(parameters, ResourceUriType.PreviousPage), "previous_page", "GET"));
-            }
-            //下一页
-            if (hasNext)
-            {
-                links.Add(new LinkDto(ResoureUri(parameters, ResourceUriType.NextPage), "next_page", "GET"));
-            }
-            return links;
         }
 
     }
