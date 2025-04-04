@@ -19,6 +19,9 @@ using Timer.Quartz;
 
 namespace Timer
 {
+    /// <summary>
+    /// ÒÑÆúÓÃStartup
+    /// </summary>
     public class Startup
     {
         private IConfiguration _configuration { get; }

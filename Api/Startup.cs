@@ -36,6 +36,9 @@ using Common.Middleware;
 
 namespace Api
 {
+    /// <summary>
+    /// ÒÑÆúÓÃStartup
+    /// </summary>
     public class Startup
     {
         public Startup(IConfiguration configuration)
