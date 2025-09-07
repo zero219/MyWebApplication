@@ -34,6 +34,7 @@ using Microsoft.AspNetCore.Http;
 using Common.Redis;
 using System.Runtime.Loader;
 using System.Linq;
+using Microsoft.Extensions.Options;
 
 public class Program
 {
@@ -80,6 +81,10 @@ public class Program
 
         // 注册自定义异常捕捉中间件
         builder.Services.AddTransient<ExceptionHandlingMiddleware>();
+
+        // 多租户
+        builder.Services.AddScoped<TenantInfo>();
+        builder.Services.AddScoped<ISqlConnectionResolver, HttpHeaderSqlConnectionResolver>();
 
         builder.Services.AddHttpCacheHeaders(expires =>//过期模型
         {
@@ -165,9 +170,10 @@ public class Program
         #endregion
 
         #region 数据库连接
-        builder.Services.AddDbContext<RoutineDbContext>(options =>
+        builder.Services.AddDbContext<RoutineDbContext>((serviceProvider, options) =>
         {
-            options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
+            var resolver = serviceProvider.GetRequiredService<ISqlConnectionResolver>();
+            options.UseSqlite(resolver.GetConnection());
         });
         #endregion
 
@@ -246,7 +252,7 @@ public class Program
             c.SwaggerDoc("v1", new OpenApiInfo
             {
                 Version = "v1",
-                Title = $"{apiName} 接口文档——Net5",
+                Title = $"{apiName} 接口文档——Net6",
                 Description = $"{apiName} HTTP API V1",
                 TermsOfService = new Uri("https://www.cnblogs.com/-zzc/"),
                 Contact = new OpenApiContact
@@ -321,7 +327,7 @@ public class Program
             {
                 var db = scope.ServiceProvider.GetService<RoutineDbContext>();
                 db.Database.EnsureDeleted();//删除数据库
-                db.Database.EnsureCreated();
+                db.Database.EnsureCreated(); //数据库如果不存在就创建
             }
             catch (Exception ex)
             {
@@ -338,7 +344,8 @@ public class Program
 
         // 自定义中间件，用于捕捉全局异常
         app.UseMiddleware<ExceptionHandlingMiddleware>();
-
+        // 多租户中间件
+        app.UseMiddleware<TenantInfoMiddleware>();
         #region ETAG缓存中间件
         app.UseHttpCacheHeaders();
         #endregion

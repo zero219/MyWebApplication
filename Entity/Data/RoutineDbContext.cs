@@ -16,9 +16,6 @@ namespace Entity.Data
         ApplicationUserClaim, ApplicationUserRole, ApplicationUserLogin,
         ApplicationRoleClaim, ApplicationUserToken>
     {
-
-        public bool UseIntProperty { get; set; }
-
         public RoutineDbContext(DbContextOptions<RoutineDbContext> options) : base(options)
         {
 
