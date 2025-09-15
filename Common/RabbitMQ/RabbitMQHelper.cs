@@ -1,4 +1,6 @@
-﻿using RabbitMQ.Client;
+﻿using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System;
 using System.Collections.Concurrent;
@@ -6,785 +8,385 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 
 namespace Common.RabbitMQ
 {
-    public class RabbitMQHelper
+    public partial class RabbitMQHelper : IDisposable
     {
         /// <summary>
-        /// ip
+        /// 日志记录器
         /// </summary>
-        private readonly string _hostName;
-        /// <summary>
-        /// 端口
-        /// </summary>
-        private readonly int _port;
-        /// <summary>
-        /// 虚拟机
-        /// </summary>
-        private readonly string _virtualHost;
-        /// <summary>
-        /// 用户名
-        /// </summary>
-        private readonly string _userName;
-        /// <summary>
-        /// 密码
-        /// </summary>
-        private readonly string _passWord;
-
-        public RabbitMQHelper(string hostName, int port, string virtualHost, string userName, string password)
-        {
-            _hostName = hostName;
-            _port = port;
-            _virtualHost = virtualHost;
-            _userName = userName;
-            _passWord = password;
-        }
+        private readonly ILogger<RabbitMQHelper> _logger;
 
         /// <summary>
-        /// 创建连接
+        /// 连接工厂
         /// </summary>
-        /// <returns></returns>
-        private IConnection GetConnection()
+        private readonly ConnectionFactory _factory;
+
+        /// <summary>
+        /// 连接对象
+        /// </summary>
+        private IConnection _connection;
+
+        /// <summary>
+        /// 通道对象
+        /// </summary>
+        private IModel _channel;
+
+        /// <summary>
+        /// 释放状态标志
+        /// </summary>
+        private bool _disposed;
+
+        /// <summary>
+        /// 连接锁对象
+        /// </summary>
+        private readonly object _connectionLock = new();
+
+        /// <summary>
+        /// 通道锁对象
+        /// </summary>
+        private readonly object _channelLock = new();
+
+        /// <summary>
+        /// 是否已连接
+        /// </summary>
+        public bool IsConnected => _connection?.IsOpen == true;
+
+        /// <summary>
+        /// 通道是否打开
+        /// </summary>
+        public bool IsChannelOpen => _channel?.IsOpen == true;
+
+        /// <summary>
+        /// 客户端提供的名称
+        /// </summary>
+        public string ClientProvidedName => _connection?.ClientProvidedName;
+
+        /// <summary>
+        /// 通道编号
+        /// </summary>
+        public int? ChannelNumber => _channel?.ChannelNumber;
+
+        /// <summary>
+        /// 初始化 RabbitMQHelper
+        /// </summary>
+        public RabbitMQHelper(RabbitMQOptions options, ILogger<RabbitMQHelper> logger = null)
         {
-            /*
-             * 1.创建连接工厂
-             * 2.设置参数
-             *    HostName:ip
-             *    Port:端口
-             *    VirtualHost:虚拟机 
-             *    UserName:用户名
-             *    Password:密码
-             */
-            var connectionFactory = new ConnectionFactory
+            if (options == null) throw new ArgumentNullException(nameof(options));
+
+            _logger = logger;
+
+            // 创建连接工厂（推荐只初始化一次，避免重复 new）
+            _factory = new ConnectionFactory
             {
-                HostName = _hostName,
-                Port = _port,
-                VirtualHost = _virtualHost,
-                UserName = _userName,
-                Password = _passWord
-            };
-            //3.创建连接
-            return connectionFactory.CreateConnection();
-        }
+                HostName = options.HostName ?? throw new ArgumentNullException(nameof(options.HostName)),
+                Port = options.Port > 0 ? options.Port : 5672,
+                VirtualHost = string.IsNullOrEmpty(options.VirtualHost) ? "/" : options.VirtualHost,
+                UserName = options.UserName ?? throw new ArgumentNullException(nameof(options.UserName)),
+                Password = options.Password ?? throw new ArgumentNullException(nameof(options.Password)),
 
-        /// <summary>
-        /// 创建channel
-        /// </summary>
-        /// <returns></returns>
-        private IModel GetCreateModel()
-        {
-            //4.创建channel(channel是轻量级连接，主要作用：极大减少操作系统建立TCP连接开销)
-            return GetConnection().CreateModel();
-        }
+                // 自动恢复配置
+                AutomaticRecoveryEnabled = true,
+                NetworkRecoveryInterval = options.NetworkRecoveryInterval ?? TimeSpan.FromSeconds(10),
+                RequestedHeartbeat = options.RequestedHeartbeat ?? TimeSpan.FromSeconds(30),
 
-        /// <summary>
-        /// 创建交换机
-        /// </summary>
-        private void CreateExchangeDeclare(ExchangeDeclareData exchangeDeclare)
-        {
-            /* 4.1.创建交换机
-             *  exchange：交换机名称, 
-             *  type：交换机类型（Direct：定向、Fanout：扇形、Headers：参数匹配、Topic：通配符） 
-             *  durable：是否持久化  
-             *  autoDelete：自动删除
-             *  arguments：参数
-             */
-            GetCreateModel().ExchangeDeclare(exchange: exchangeDeclare.Exchange,
-                type: exchangeDeclare.Type,
-                durable: exchangeDeclare.Durable,
-                autoDelete: exchangeDeclare.AutoDelete,
-                arguments: exchangeDeclare.Arguments);
-        }
-        /// <summary>
-        /// 创建队列
-        /// </summary>
-        /// <param name="queueDeclare"></param>
-        /// <returns></returns>
-        private QueueDeclareOk CreateQueueDeclare(QueueDeclareData queueDeclare)
-        {
-            /* 5.创建队列(Queue)
-             *   queue：队列名称
-             *   durable：是否持久化
-             *   exclusive：是否独占
-             *   autoDelete：是否自动删除
-             *   arguments：参数
-             */
-            return GetCreateModel().QueueDeclare(queue: queueDeclare.Queue,
-                                            durable: queueDeclare.Durable,
-                                            exclusive: queueDeclare.Exclusive,
-                                            autoDelete: queueDeclare.AutoDelete,
-                                            arguments: queueDeclare.Arguments);
-        }
-
-        /// <summary>
-        /// 绑定队列和交换机
-        /// </summary>
-        private void GetQueueBind(QueueBindData queueBind)
-        {
-            /* 5.1.绑定队列和交换机
-             * queue：队列名称
-             * exchange：交换机名称
-             * routingKey：路由键，绑定规则；如果交换机类型为fanout,routingKey设置""
-             */
-            GetCreateModel().QueueBind(queue: queueBind.Queue, exchange: queueBind.Exchange, routingKey: queueBind.RoutingKey);
-        }
-        /// <summary>
-        /// 发送消息
-        /// </summary>
-        private void BasicPublishMsg(BasicPublishData basicPublish)
-        {
-            /* 6.发送消息
-             *   exchange：交换机名称,简单模式下使用空字符串""
-             *   routingKey：路由名称
-             *   mandatory：
-             *   basicProperties：配置信息
-             *   body： 发送的消息
-             */
-            GetCreateModel().BasicPublish(exchange: basicPublish.Exchange,
-                                          routingKey: basicPublish.RoutingKey,
-                                          basicProperties: basicPublish.BasicProperties,
-                                          body: basicPublish.Body);
-        }
-
-        /// <summary>
-        /// 关闭连接
-        /// </summary>
-        private void Close()
-        {
-            // 7.关闭连接
-            GetCreateModel().Close();
-            GetConnection().Close();
-        }
-
-        /// <summary>
-        /// 接收消息
-        /// </summary>
-        /// <param name="basicConsume"></param>
-        private void GetBasicConsume(BasicConsumeData basicConsume)
-        {
-            /* 6.接收消息
-             *   queue：队列名称
-             *   autoAck：是否自动确认
-             *   consumer：回调对象
-             */
-            GetCreateModel().BasicConsume(queue: basicConsume.Queue, autoAck: basicConsume.AutoAck, consumer: basicConsume.Consumer);
-        }
-
-
-        #region Simple一对一模式
-        /// <summary>
-        /// 生产者,一对一模式
-        /// </summary>
-        /// <param name="msg"></param>
-        /// <param name="queueDeclare"></param>
-        /// <param name="basicPublish"></param>
-        public void SimpleSendMsg(string msg, QueueDeclareData queueDeclare, BasicPublishData basicPublish)
-        {
-            //启用生产者确认消息
-            GetCreateModel().ConfirmSelect();
-            // 5.创建队列(Queue)
-            CreateQueueDeclare(queueDeclare);
-
-            /* 线程安全有序的集合，适用于高并发
-             * 作用：将序号和消息关联，轻松删除多条消息，只要给到序号
-             */
-            var outstandingConfirms = new ConcurrentDictionary<ulong, string>();
-
-            //消息确认成功回调函数
-            GetCreateModel().BasicAcks += (sender, ea) =>
-            {
-                //是否批量
-                if (ea.Multiple)
-                {
-                    //删除确认的消息
-                    var confirmed = outstandingConfirms.Where(k => k.Key <= ea.DeliveryTag);
-                    foreach (var entry in confirmed)
-                    {
-                        outstandingConfirms.TryRemove(entry.Key, out _);
-                        Console.WriteLine("发送消息成功！消息标识是：{0}", entry);
-                    }
-                }
-                else
-                {
-                    outstandingConfirms.TryRemove(ea.DeliveryTag, out _);
-                    Console.WriteLine("发送消息成功！消息标识是：{0}", ea.DeliveryTag);
-                }
-
+                DispatchConsumersAsync = true // 支持异步消费者
             };
 
-            //消息确认失败回调函数
-            GetCreateModel().BasicNacks += (sender, ea) =>
+            _logger?.LogInformation("RabbitMQHelper 初始化完成，目标服务器: {Host}:{Port}", _factory.HostName, _factory.Port);
+
+            // 如果配置了立即初始化，则立刻建立连接和通道
+            if (options.InitializeImmediately)
             {
-                outstandingConfirms.TryGetValue(ea.DeliveryTag, out string body);
-                Console.WriteLine("发送消息失败！消息标识是：{0}", ea.DeliveryTag);
-            };
-
-            for (int i = 0; i < 10; i++)
-            {
-                string message = string.Format("{0}{1}!", msg, (i + 1));
-                var body = Encoding.UTF8.GetBytes(msg);
-
-                /* 记录要发送的消息，消息的总和
-                 * NextPublishSeqNo：获取序列号
-                 * message：消息
-                 */
-                outstandingConfirms.TryAdd(GetCreateModel().NextPublishSeqNo, message);
-
-                basicPublish.Body = body;
-                // 6.发送消息
-                BasicPublishMsg(basicPublish);
+                Initialize();
             }
-
-            //7.关闭连接
-            Close();
         }
 
+        #region 初始化连接/通道
         /// <summary>
-        ///  消费者,一对一模式
+        /// 初始化连接和通道
         /// </summary>
-        /// <param name="queueDeclare"></param>
-        public void SimpleReceiveMsg(QueueDeclareData queueDeclare, BasicConsumeData basicConsume)
+        private void Initialize()
         {
-            /* 5.创建队列(Queue)
-             * 注：如果发送消息时已经创建队列，消费者可以省略创建队列
-             */
-            CreateQueueDeclare(queueDeclare);
-
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(GetCreateModel());
-            consumer.Received += (model, ea) =>
+            lock (_connectionLock)
             {
+                if (IsConnected) return;
 
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("标识：{0},交换机：{1},路由key：{2},配置信息：{3},数据：{4}",
-                                  ea.ConsumerTag,
-                                  ea.Exchange,
-                                  ea.RoutingKey,
-                                  ea.BasicProperties,
-                                  message);
-
-                #region 消费者消息可靠性
                 try
                 {
-                    Thread.Sleep(1000);
-                    /* 手动签收
-                     * deliveryTag：标识
-                     * multiple：允许签收多条
-                     */
-                    GetCreateModel().BasicAck(deliveryTag: ea.DeliveryTag, multiple: true);
+                    // 建立连接
+                    _connection = _factory.CreateConnection();
+                    BindConnectionEvents(_connection);
 
+                    // 创建通道
+                    _channel = _connection.CreateModel();
+                    BindChannelEvents(_channel);
+
+                    // 设置 QoS，确保公平分发
+                    _channel.BasicQos(0, 1, false);
+
+                    _logger?.LogInformation("RabbitMQ 连接成功. Client: {Client}, Channel: #{Channel}",
+                        _connection.ClientProvidedName, _channel.ChannelNumber);
                 }
                 catch (Exception ex)
                 {
-                    /* 拒绝签收
-                     * deliveryTag：标识
-                     * multiple：允许签收多条
-                     * requeue：true重回队列，会重新发送该消息给消费端
-                     */
-                    GetCreateModel().BasicNack(deliveryTag: ea.DeliveryTag, multiple: true, requeue: true);
-                    //拒绝一次
-                    //channel.BasicReject(deliveryTag: ea.DeliveryTag, true);
+                    _logger?.LogError(ex, "RabbitMQ 初始化失败");
+                    throw;
                 }
-                #endregion
-            };
-
-            #region 消息限流
-
-            /* prefetSize：0
-             * prefetCount：这个值一般在设置为非自动ack的情况下生效，每次消费多少条，一般大小为1,。
-             * global： true是channel级别， false是消费者级别。
-             * 注意：我们要使用非自动ack。
-             */
-            GetCreateModel().BasicQos(0, 1, false);
-            #endregion
-
-            // 6.接收消息
-            basicConsume.Consumer = consumer;
-            GetBasicConsume(basicConsume);
-
-            //7.消费者是个监听者，不需要关闭资源
-        }
-
-        #endregion
-
-        #region WorkQueues一对多模式
-        /// <summary>
-        /// 生产者,一对多模式
-        /// </summary>
-        /// <param name="msg"></param>
-        /// <param name="queueDeclare"></param>
-        /// <param name="basicPublish"></param>
-        public void WorkSendMsg(string msg, QueueDeclareData queueDeclare, BasicPublishData basicPublish)
-        {
-            //创建channel
-            GetCreateModel();
-            //创建队列
-            CreateQueueDeclare(queueDeclare);
-
-            for (int i = 0; i < 10; i++)
-            {
-                string message = string.Format("{0}{1}!", msg, (i + 1));
-                var body = Encoding.UTF8.GetBytes(message);
-                basicPublish.Body = body;
-                //发送消息
-                BasicPublishMsg(basicPublish);
             }
-            //关闭连接
-            Close();
         }
 
         /// <summary>
-        /// 消费者1,一对多模式
+        /// 获取一个可用的通道（如果断开则会自动重建）
         /// </summary>
-        /// <param name="basicConsume"></param>
-        public void WorkReceiveMsgOne(BasicConsumeData basicConsume)
+        public IModel GetChannel()
         {
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(GetCreateModel());
-            consumer.Received += (model, ea) =>
+            if (_disposed) throw new ObjectDisposedException(nameof(RabbitMQHelper));
+
+            if (IsChannelOpen) return _channel;
+
+            lock (_channelLock)
             {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("数据：{0}", message);
-            };
-            //接收消息
-            basicConsume.AutoAck = true;
-            basicConsume.Consumer = consumer;
-            GetBasicConsume(basicConsume);
+                if (IsChannelOpen) return _channel;
 
-            //消费者是个监听者，不需要关闭资源
-        }
+                if (!IsConnected) Initialize();
 
-        /// <summary>
-        /// 消费者2,一对多模式
-        /// </summary>
-        /// <param name="basicConsume"></param>
-        public void WorkReceiveMsgTwo(BasicConsumeData basicConsume)
-        {
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(GetCreateModel());
-            consumer.Received += (model, ea) =>
-            {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("数据：{0}", message);
-            };
-            //接收消息
-            basicConsume.AutoAck = true;
-            basicConsume.Consumer = consumer;
-            GetBasicConsume(basicConsume);
+                _channel = _connection.CreateModel();
+                BindChannelEvents(_channel);
+                // prefetchSize: 单条消息大小限制，0表示不限制
+                // prefetchCount: 每次预取消息数量，1表示每次只处理1条
+                // global: 作用范围，false表示针对单个消费者
+                _channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
 
-            //消费者是个监听者，不需要关闭资源
-        }
-        #endregion
-
-        #region 交换机模式
-        /// <summary>
-        /// 交换机模式
-        /// </summary>
-        /// <param name="msg"></param>
-        /// <param name="exchangeDeclare"></param>
-        /// <param name="queueDeclare1"></param>
-        /// <param name="queueDeclare2"></param>
-        /// <param name="queueBind"></param>
-        /// <param name="basicPublish"></param>
-        public void PublishSubscribeSendMsg(string msg, ExchangeDeclareData exchangeDeclare, QueueDeclareData queueDeclare1,
-            QueueDeclareData queueDeclare2, QueueBindData queueBind, BasicPublishData basicPublish)
-        {
-            // 4.创建channel
-            // 5.创建交换机
-            CreateExchangeDeclare(exchangeDeclare);
-
-            // 6.创建队列(Queue)
-            var queueName1 = CreateQueueDeclare(queueDeclare1);
-            // 7.绑定队列和交换机
-            queueBind.Queue = queueName1;
-            GetQueueBind(queueBind);
-
-            var queueName2 = CreateQueueDeclare(queueDeclare2);
-            queueBind.Queue = queueName2;
-            GetQueueBind(queueBind);
-
-            var body = Encoding.UTF8.GetBytes(msg);
-
-            // 8.发送消息
-            basicPublish.Body = body;
-            BasicPublishMsg(basicPublish);
-            //9.关闭连接
-            Close();
-        }
-
-        public void PublishSubscribeReceiveMsgOne(BasicConsumeData basicConsume)
-        {
-            //创建channel
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(GetCreateModel());
-            consumer.Received += (model, ea) =>
-            {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("{0}消息保存到日志。。。", message);
-            };
-            //接收消息
-            GetBasicConsume(basicConsume);
-            //消费者是个监听者，不需要关闭资源
-        }
-
-        public void PublishSubscribeReceiveMsgTwo(BasicConsumeData basicConsume)
-        {
-
-            //创建channel
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(GetCreateModel());
-            consumer.Received += (model, ea) =>
-            {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("{0}消息保存到数据库。。。", message);
-            };
-            //接收消息
-            GetBasicConsume(basicConsume);
-
-            //消费者是个监听者，不需要关闭资源
-        }
-        #endregion
-
-        #region 路由模式
-        public void RoutingSendMsg()
-        {
-            //4.创建channel
-            var channel = GetConnection().CreateModel();
-            /* 5.创建交换机
-             *  exchange：交换机名称, 
-             *  type：交换机类型（Direct：定向、Fanout：扇形、Headers：参数匹配、Topic：通配符） 
-             *  durable：是否持久化  
-             *  autoDelete：自动删除
-             *  arguments：参数
-             */
-            var exchangeName = "test_direct";
-            channel.ExchangeDeclare(exchange: exchangeName, type: ExchangeType.Direct, durable: true, autoDelete: false, arguments: null);
-
-            /* 6.创建队列(Queue)
-              * queue：队列名称
-              * durable：是否持久化
-              * exclusive：是否独占
-              * autoDelete：是否自动删除
-              * arguments：参数
-              */
-            var queue1 = channel.QueueDeclare(queue: "Hello_Routing_Queue1",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: null);
-
-            var queue2 = channel.QueueDeclare(queue: "Hello_Routing_Queue2",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: null);
-
-            /* 7.绑定队列和交换机
-             * queue：队列名称
-             * exchange：交换机名称
-             * routingKey：路由键，绑定规则；如果交换机类型为fanout,routingKey设置""
-             */
-            channel.QueueBind(queue: queue1,
-                              exchange: exchangeName,
-                              routingKey: "error");
-
-            channel.QueueBind(queue: queue2,
-                              exchange: exchangeName,
-                              routingKey: "info");
-            channel.QueueBind(queue: queue2,
-                              exchange: exchangeName,
-                              routingKey: "warning");
-            channel.QueueBind(queue: queue2,
-                              exchange: exchangeName,
-                              routingKey: "error");
-
-
-            string message = "Hello Routing!，日志级别：error！";
-            var body = Encoding.UTF8.GetBytes(message);
-
-            /* 8.发送消息
-             * exchange：交换机名称
-             * routingKey：路由名称
-             * basicProperties：配置信息
-             * body： 发送的消息
-             */
-            channel.BasicPublish(exchange: exchangeName,
-                                 routingKey: "error",
-                                 basicProperties: null,
-                                 body: body);
-            //8.关闭连接
-            Close();
-        }
-
-        public void RoutingReceiveMsgOne()
-        {
-            //创建channel
-            var channel = GetConnection().CreateModel();
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(channel);
-            consumer.Received += (model, ea) =>
-            {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("{0}消息保存到日志。。。", message);
-            };
-            //接收消息
-            channel.BasicConsume(queue: "Hello_Routing_Queue1",
-                                  autoAck: true,
-                                  consumer: consumer);
-            //消费者是个监听者，不需要关闭资源
-        }
-
-        public void RoutingReceiveMsgTwo()
-        {
-            //创建channel
-            var channel = GetConnection().CreateModel();
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(channel);
-            consumer.Received += (model, ea) =>
-            {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("{0}消息保存到数据库。。。", message);
-            };
-            //接收消息
-            channel.BasicConsume(queue: "Hello_Routing_Queue2",
-                                  autoAck: true,
-                                  consumer: consumer);
-            //消费者是个监听者，不需要关闭资源
-        }
-        #endregion
-
-        #region 通配符
-        public void TopicsSendMsg()
-        {
-            //4.创建channel
-            var channel = GetConnection().CreateModel();
-            /* 5.创建交换机
-             *  exchange：交换机名称, 
-             *  type：交换机类型（Direct：定向、Fanout：扇形、Headers：参数匹配、Topic：通配符） 
-             *  durable：是否持久化  
-             *  autoDelete：自动删除
-             *  arguments：参数
-             */
-            var exchangeName = "test_topic";
-            channel.ExchangeDeclare(exchange: exchangeName, type: ExchangeType.Topic, durable: true, autoDelete: false, arguments: null);
-
-            /* 6.创建队列(Queue)
-              * queue：队列名称
-              * durable：是否持久化
-              * exclusive：是否独占
-              * autoDelete：是否自动删除
-              * arguments：参数
-              */
-            #region ttl
-            var args = new Dictionary<string, object>();
-            //队列过期时间
-            args.Add("x-message-ttl", 10000);
-
-            //消息过期时间
-            IBasicProperties props = channel.CreateBasicProperties();
-            props.ContentType = "text/plain";
-            props.DeliveryMode = 2;
-            props.Expiration = "50000";
-            /* 注：两个都设置按时间短过期
-             * 队列过期将会移除所有消息
-             * 只有在消息顶端，才会判断其是否过期（移除）
-             */
-            #endregion
-
-            var queue1 = channel.QueueDeclare(queue: "Hello_Topics_Queue1",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: args);
-
-            var queue2 = channel.QueueDeclare(queue: "Hello_Topics_Queue2",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: args);
-
-            /* 7.绑定队列和交换机
-             * queue：队列名称
-             * exchange：交换机名称
-             * routingKey：路由键，绑定规则；“*”表示一个占位符，“#”表示一个或者多个
-             */
-            channel.QueueBind(queue: queue1,
-                              exchange: exchangeName,
-                              routingKey: "#");
-
-            channel.QueueBind(queue: queue2,
-                              exchange: exchangeName,
-                              routingKey: "order.*");
-            channel.QueueBind(queue: queue2,
-                              exchange: exchangeName,
-                              routingKey: "order.#");
-            channel.QueueBind(queue: queue2,
-                              exchange: exchangeName,
-                              routingKey: "#.error");
-
-
-
-            string message = "Hello Topics!，日志级别：info！";
-            var body = Encoding.UTF8.GetBytes(message);
-
-            /* 8.发送消息
-             * exchange：交换机名称
-             * routingKey：路由名称
-             * basicProperties：配置信息
-             * body： 发送的消息
-             */
-            channel.BasicPublish(exchange: exchangeName,
-                                 routingKey: "order.info",
-                                 basicProperties: props,
-                                 body: body);
-            //8.关闭连接
-            Close();
-        }
-
-        public void TopicsReceiveMsgOne()
-        {
-            //4.创建channel
-            var channel = GetConnection().CreateModel();
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(channel);
-            consumer.Received += (model, ea) =>
-            {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("{0}消息保存到日志。。。", message);
-            };
-            //接收消息
-            channel.BasicConsume(queue: "Hello_Topics_Queue1",
-                                  autoAck: true,
-                                  consumer: consumer);
-            //消费者是个监听者，不需要关闭资源
-        }
-        public void TopicsReceiveMsgTwo()
-        {
-            //创建channel
-            var channel = GetConnection().CreateModel();
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(channel);
-            consumer.Received += (model, ea) =>
-            {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
-                Console.WriteLine("{0}消息保存到数据库。。。", message);
-            };
-            //接收消息
-            channel.BasicConsume(queue: "Hello_Topics_Queue2",
-                                  autoAck: true,
-                                  consumer: consumer);
-            //消费者是个监听者，不需要关闭资源
-        }
-        #endregion
-
-        #region 死信队列
-        public void DlxSendMsg()
-        {
-            //创建channel
-            var channel = GetConnection().CreateModel();
-            //创建交换机
-            channel.ExchangeDeclare(exchange: "test_echange", type: ExchangeType.Topic, durable: true, autoDelete: false, arguments: null);
-
-            var args = new Dictionary<string, object>();
-            //死信交换机
-            args.Add("x-dead-letter-exchange", "test_echange_dlx");
-            //死信路由key
-            args.Add("x-dead-letter-routing-key", "test_dlx.routing_key");
-            //队列过期时间
-            args.Add("x-message-ttl", 10000);
-            //队列长度
-            args.Add("x-max-length", 10);
-            var queue = channel.QueueDeclare(queue: "test_queue",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: args);
-            //绑定队列和交换机
-            channel.QueueBind(queue: queue,
-                              exchange: "test_echange",
-                              routingKey: "test.#");
-
-
-            #region 死信队列
-            /* 成为死信的队列条件：
-             * 1.过期时间
-             * 2.队列长度限制
-             * 3.消息被拒收
-             * 注：RabbitMQ中没有延迟队列，但是队列过期时间+死信交换机=延迟队列（ttl+dlx）
-             */
-
-            //声明死信交换机
-            channel.ExchangeDeclare(exchange: "test_echange_dlx", type: ExchangeType.Topic, durable: true, autoDelete: false, arguments: null);
-
-            //声明死信队列
-            var queueDlx = channel.QueueDeclare(queue: "test_queue_dlx",
-                             durable: false,
-                             exclusive: false,
-                             autoDelete: false,
-                             arguments: null);
-            //绑定死信队列和死信交换机
-            channel.QueueBind(queue: queueDlx,
-                              exchange: "test_echange_dlx",
-                              routingKey: "test_dlx.#");
-            #endregion
-
-            //发送消息
-            for (int i = 0; i < 20; i++)
-            {
-                string message = "Hello DLX" + (i + 1) + "!";
-                var body = Encoding.UTF8.GetBytes(message);
-                channel.BasicPublish(exchange: "test_echange",
-                                 routingKey: "test.dlx",
-                                 basicProperties: null,
-                                 body: body);
+                _logger?.LogInformation("RabbitMQ 通道重建成功: Channel#{Channel}", _channel.ChannelNumber);
+                return _channel;
             }
+        }
+        #endregion
 
-            //关闭连接
-            Close();
+        #region Exchange/Queue
+
+        /// <summary>
+        /// 声明交换机
+        /// </summary>
+        /// <param name="channel">RabbitMQ 通道</param>
+        /// <param name="exchangeName">交换机名称</param>
+        /// <param name="type">交换机类型（direct、fanout、topic、headers 等）</param>
+        /// <param name="durable">是否持久化（true 表示 RabbitMQ 重启后交换机依然存在）</param>
+        /// <param name="autoDelete">是否自动删除（当没有队列绑定时自动删除交换机）</param>
+        /// <param name="arguments">额外参数（如延迟队列需要传入 {"x-delayed-type", "direct"}）</param>
+        public void ExchangeDeclare(IModel channel, string exchangeName, string type, bool durable = true, bool autoDelete = false,
+            IDictionary<string, object> arguments = null)
+        {
+            try
+            {
+                // 声明交换机
+                channel.ExchangeDeclare(exchange: exchangeName, type: type, durable: durable, autoDelete: autoDelete, arguments: arguments);
+
+                _logger?.LogDebug("交换机声明成功: {ExchangeName} ({Type})", exchangeName, type);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "交换机声明失败: {ExchangeName}", exchangeName);
+                throw;
+            }
         }
 
-        public void DlxReceiveMsg()
+        /// <summary>
+        /// 声明队列
+        /// </summary>
+        /// <param name="channel">RabbitMQ 通道</param>
+        /// <param name="queueName">队列名称</param>
+        /// <param name="durable">是否持久化（true 表示 RabbitMQ 重启后队列依然存在）</param>
+        /// <param name="exclusive">是否排他（true 表示只有当前连接能使用，连接断开后队列会被删除）</param>
+        /// <param name="autoDelete">是否自动删除（true 表示当没有消费者时自动删除队列）</param>
+        /// <param name="arguments">额外参数（如死信队列：{"x-dead-letter-exchange", "dlx.exchange"}）</param>
+        /// <returns>队列声明结果（包含队列名、消息数、消费者数）</returns>
+        public QueueDeclareOk QueueDeclare(IModel channel, string queueName, bool durable = true, bool exclusive = false, bool autoDelete = false,
+            IDictionary<string, object> arguments = null)
         {
-            //创建channel
-            var channel = GetConnection().CreateModel();
-            //回调方法，收到消息后自动执行该方法
-            var consumer = new EventingBasicConsumer(channel);
-            consumer.Received += (model, ea) =>
+            try
             {
-                var body = ea.Body.ToArray();
-                var message = Encoding.UTF8.GetString(body);
+                var ok = channel.QueueDeclare(queue: queueName, durable: durable, exclusive: exclusive, autoDelete: autoDelete, arguments: arguments);
+
+                _logger?.LogDebug("队列声明成功: {QueueName}", queueName);
+
+                return ok;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "队列声明失败: {QueueName}", queueName);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 将队列绑定到交换机
+        /// </summary>
+        /// <param name="channel">RabbitMQ 通道</param>
+        /// <param name="queueName">队列名称</param>
+        /// <param name="exchange">交换机名称</param>
+        /// <param name="routingKey">
+        /// 路由键：
+        /// - direct 类型交换机：必须完全匹配路由键
+        /// - topic 类型交换机：支持通配符（* 表示一个单词，# 表示多个单词）
+        /// - fanout 类型交换机：忽略此参数（routingKey 传空字符串）
+        /// </param>
+        /// <param name="args">额外参数（一般很少用，可为 null）</param>
+        public void QueueBind(IModel channel, string queueName, string exchange, string routingKey, IDictionary<string, object> args = null)
+        {
+            try
+            {
+                channel.QueueBind(queue: queueName, exchange: exchange, routingKey: routingKey, arguments: args);
+
+                _logger?.LogDebug("队列绑定成功: {Queue} -> {Exchange} [{Key}]", queueName, exchange, routingKey);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "队列绑定失败: {Queue} -> {Exchange} [{Key}]", queueName, exchange, routingKey);
+                throw;
+            }
+        }
+        #endregion
+
+        #region 发布确认
+        /// <summary>
+        /// 启用发布确认（Publisher Confirms）
+        /// </summary>
+        /// <param name="channel"></param>
+        public void EnablePublisherConfirms(IModel channel)
+        {
+            // 打开确认模式
+            channel.ConfirmSelect();
+
+            // 绑定 ACK/NACK 事件
+            channel.BasicAcks += (s, ea) =>
+                _logger?.LogInformation("[ACK] DeliveryTag={Tag}, multiple={Multiple}", ea.DeliveryTag, ea.Multiple);
+
+            channel.BasicNacks += (s, ea) =>
+                _logger?.LogWarning("[NACK] DeliveryTag={Tag}, multiple={Multiple}", ea.DeliveryTag, ea.Multiple);
+        }
+        #endregion
+
+        #region 设置通道的消息预取
+        /// <summary>
+        /// 设置通道的消息预取（QoS）
+        /// </summary>
+        /// <param name="channel">RabbitMQ 通道</param>
+        /// <param name="prefetchCount">每个消费者一次最多接收的未确认消息数量</param>
+        /// <param name="prefetchSize">消息大小限制（字节），一般设为 0 表示不限</param>
+        /// <param name="global">是否对整个通道生效，false：针对当前消费者，true：全局</param>
+        public void SetChannelQos(IModel channel, ushort prefetchCount = 1, uint prefetchSize = 0, bool global = false)
+        {
+            if (channel == null)
+                throw new ArgumentNullException(nameof(channel));
+
+            channel.BasicQos(prefetchSize: prefetchSize, prefetchCount: prefetchCount, global: global);
+
+            _logger?.LogDebug("通道 QoS 设置成功: PrefetchCount={PrefetchCount}, PrefetchSize={PrefetchSize}, Global={Global}",
+                prefetchCount, prefetchSize, global);
+        }
+        #endregion
+
+        #region 消费端消息确认
+        /// <summary>
+        /// 消息处理成功，手动确认 ACK
+        /// </summary>
+        /// <param name="channel">RabbitMQ 通道</param>
+        /// <param name="deliveryTag">消息的 DeliveryTag</param>
+        /// <param name="multiple">
+        /// 是否批量确认：
+        ///— true：确认 deliveryTag 及之前所有未确认的消息  
+        ///— false：仅确认当前消息
+        /// </param>
+        public void AckMessage(IModel channel, ulong deliveryTag, bool multiple = false)
+        {
+            if (channel == null) throw new ArgumentNullException(nameof(channel));
+
+            channel.BasicAck(deliveryTag: deliveryTag, multiple: multiple);
+            _logger?.LogDebug("消息已确认 ACK, DeliveryTag={DeliveryTag}, Multiple={Multiple}", deliveryTag, multiple);
+        }
+
+        /// <summary>
+        /// 消息处理失败，手动拒绝并选择是否重新入队 NACK
+        /// </summary>
+        /// <param name="channel">RabbitMQ 通道</param>
+        /// <param name="deliveryTag">消息的 DeliveryTag</param>
+        /// <param name="multiple">
+        /// 是否批量拒绝：
+        ///— true：拒绝 deliveryTag 及之前所有未确认的消息  
+        ///— false：仅拒绝当前消息
+        /// </param>
+        /// <param name="requeue">是否重新入队，true 表示重新入队，false 表示丢弃</param>
+        public void NackMessage(IModel channel, ulong deliveryTag, bool multiple = false, bool requeue = true)
+        {
+            if (channel == null) throw new ArgumentNullException(nameof(channel));
+
+            channel.BasicNack(deliveryTag: deliveryTag, multiple: multiple, requeue: requeue);
+            _logger?.LogWarning("消息处理失败 NACK, DeliveryTag={DeliveryTag}, Multiple={Multiple}, Requeue={Requeue}",
+                deliveryTag, multiple, requeue);
+        }
+        #endregion
+
+        #region 事件绑定
+        private void BindConnectionEvents(IConnection conn)
+        {
+            conn.ConnectionShutdown += (s, ea) =>
+                _logger?.LogWarning("连接关闭: {ReplyCode} - {ReplyText}", ea.ReplyCode, ea.ReplyText);
+
+            conn.CallbackException += (s, ea) =>
+                _logger?.LogError(ea.Exception, "连接回调异常");
+        }
+
+        private void BindChannelEvents(IModel channel)
+        {
+            channel.ModelShutdown += (s, ea) =>
+                _logger?.LogWarning("通道关闭: {ReplyCode} - {ReplyText}", ea.ReplyCode, ea.ReplyText);
+
+            channel.CallbackException += (s, ea) =>
+                _logger?.LogError(ea.Exception, "通道回调异常");
+        }
+        #endregion
+
+        #region Dispose
+        /// <summary>
+        /// 释放连接和通道
+        /// </summary>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+
+            if (disposing)
+            {
                 try
                 {
-
-                    Thread.Sleep(1000);
-                    //throw new Exception();
-                    //手动签收
-                    channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: true);
-
+                    _channel?.Close();
+                    _channel?.Dispose();
+                    _connection?.Close();
+                    _connection?.Dispose();
+                    _logger?.LogInformation("RabbitMQ 资源已释放");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine("消息异常，拒绝签收消息", message);
-                    // 拒绝签收,消息会进入死信队列
-                    channel.BasicNack(deliveryTag: ea.DeliveryTag, multiple: true, requeue: false);
+                    _logger?.LogError(ex, "释放 RabbitMQ 资源失败");
                 }
+            }
 
-            };
-            //接收消息
-            channel.BasicConsume(queue: "test_queue",
-                                  autoAck: false,
-                                  consumer: consumer);
+            _channel = null;
+            _connection = null;
+            _disposed = true;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
         #endregion
+
     }
+
 }
+

@@ -5,121 +5,126 @@ using System.Text;
 
 namespace Common.RabbitMQ
 {
+
     /// <summary>
-    /// 创建队列实体
+    /// MQ配置项
     /// </summary>
-    public class QueueDeclareData
+    public class RabbitMQOptions
+    {
+        /// <summary>
+        /// RabbitMQ服务器主机名或IP地址
+        /// </summary>
+        public string HostName { get; set; }
+        /// <summary>
+        /// RabbitMQ服务器端口号
+        /// </summary>
+        public int Port { get; set; }
+        /// <summary>
+        /// 虚拟主机路径
+        /// </summary>
+        public string VirtualHost { get; set; }
+        /// <summary>
+        /// 用户名
+        /// </summary>
+        public string UserName { get; set; }
+        /// <summary>
+        /// 密码
+        /// </summary>
+        public string Password { get; set; }
+        /// <summary>
+        /// 是否立即初始化连接
+        /// </summary>
+        public bool InitializeImmediately { get; set; }
+        /// <summary>
+        /// 网络恢复间隔时间
+        /// </summary>
+        public TimeSpan? NetworkRecoveryInterval { get; set; }
+        /// <summary>
+        /// 请求的心跳间隔时间
+        /// </summary>
+        public TimeSpan? RequestedHeartbeat { get; set; }
+    }
+
+    /// <summary>
+    /// 工作队列配置
+    /// </summary>
+    public class WorkQueueOptions
     {
         /// <summary>
         /// 队列名称
         /// </summary>
-        public string Queue { get; set; }
+        public string QueueName { get; set; }
         /// <summary>
-        /// 是否持久化
-        /// </summary>
-        public bool Durable { get; set; } = false;
-        /// <summary>
-        /// 是否独占
-        /// </summary>
-        public bool Exclusive { get; set; } = false;
-        /// <summary>
-        /// 是否自动删除
-        /// </summary>
-        public bool AutoDelete { get; set; } = false;
-        /// <summary>
-        /// 参数
-        /// </summary>
-        public Dictionary<string, object> Arguments { get; set; } = new Dictionary<string, object>();
-    }
-
-    /// <summary>
-    /// 发送消息实体
-    /// </summary>
-    public class BasicPublishData
-    {
-        /// <summary>
-        /// 交换机
-        /// </summary>
-        public string Exchange { get; set; } = string.Empty;
-        /// <summary>
-        /// 路由名称
-        /// </summary>
-        public string RoutingKey { get; set; }
-        /// <summary>
-        /// 配置信息
-        /// </summary>
-        public IBasicProperties BasicProperties { get; set; } = null;
-        /// <summary>
-        /// 发送的消息
-        /// </summary>
-        public ReadOnlyMemory<byte> Body { get; set; }
-    }
-
-    /// <summary>
-    /// 接收消息实体
-    /// </summary>
-    public class BasicConsumeData
-    {
-        /// <summary>
-        /// 队列名称
-        /// </summary>
-        public string Queue { get; set; }
-
-        /// <summary>
-        /// 是否自动确认
-        /// </summary>
-        public bool AutoAck { get; set; } = false;
-
-        /// <summary>
-        /// 回调对象
-        /// </summary>
-        public IBasicConsumer Consumer { get; set; }
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    public class ExchangeDeclareData
-    {
-        /// <summary>
-        /// 交换机
-        /// </summary>
-        public string Exchange { get; set; }
-        /// <summary>
-        /// 交换机类型（Direct：定向、Fanout：扇形、Headers：参数匹配、Topic：通配符） 
-        /// </summary>
-        public string Type { get; set;}
-
-        /// <summary>
-        /// 是否持久化
+        /// 是否持久化队列（服务器重启后队列仍然存在）
+        /// 默认值：true
         /// </summary>
         public bool Durable { get; set; } = true;
         /// <summary>
-        /// 是否自动删除
+        /// 是否为独占队列（仅限当前连接使用）
+        /// 默认值：false
+        /// </summary>
+        public bool Exclusive { get; set; } = false;
+        /// <summary>
+        /// 是否自动删除队列（当所有消费者断开连接后自动删除）
+        /// 默认值：false
         /// </summary>
         public bool AutoDelete { get; set; } = false;
         /// <summary>
-        /// 参数
+        /// 预取数量（每个消费者最多同时处理的消息数量）
+        /// 默认值：1（公平分发模式）
         /// </summary>
-        public Dictionary<string, object> Arguments { get; set; } = new Dictionary<string, object>();
+        public ushort PrefetchCount { get; set; } = 1;
+        /// <summary>
+        /// 队列附加参数（用于设置特殊功能如：消息TTL、队列长度限制等）
+        /// </summary>
+        public Dictionary<string, object> Arguments { get; set; }
     }
+
     /// <summary>
-    /// 绑定队列和交换机实体
+    /// 死信队列配置
     /// </summary>
-    public class QueueBindData
+    public class DeadLetterConfig
     {
         /// <summary>
-        /// 队列名称
+        /// 死信交换机名称
         /// </summary>
-        public string Queue { get; set; }
-        /// <summary>
-        /// 交换机
-        /// </summary>
-        public string Exchange { get; set; }
+        public string DeadLetterExchange { get; set; } = "dead.letter.exchange";
 
         /// <summary>
-        /// 路由名称
+        /// 死信队列名称
         /// </summary>
-        public string RoutingKey { get; set; } = string.Empty;
+        public string DeadLetterQueue { get; set; } = "dead_letter_queue";
+
+        /// <summary>
+        /// 死信路由键
+        /// </summary>
+        public string DeadLetterRoutingKey { get; set; } = "dead.letter";
+
+        /// <summary>
+        /// 死信交换机类型
+        /// </summary>
+        public string DeadLetterExchangeType { get; set; } = ExchangeType.Direct;
+
+        /// <summary>
+        /// 消息存活时间（毫秒），超过时间未消费则进入死信队列
+        /// </summary>
+        public int? MessageTTL { get; set; }
+
+        /// <summary>
+        /// 队列最大长度，超过长度则最早的消息进入死信队列
+        /// </summary>
+        public int? MaxLength { get; set; }
+
+        /// <summary>
+        /// 最大优先级
+        /// </summary>
+        public int? MaxPriority { get; set; }
+
+        /// <summary>
+        /// 队列溢出行为, reject-publish, drop-head
+        /// </summary>
+        public string OverflowBehavior { get; set; }
     }
+
+
 }

@@ -32,7 +32,7 @@ namespace Common.RabbitMQ
              */
             var connectionFactory = new ConnectionFactory
             {
-                HostName = "47.113.206.130",
+                HostName = "localhost",
                 Port = 5672,
                 VirtualHost = "/",
                 UserName = "guest",

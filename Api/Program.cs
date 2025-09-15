@@ -35,6 +35,7 @@ using Common.Redis;
 using System.Runtime.Loader;
 using System.Linq;
 using Microsoft.Extensions.Options;
+using Common.RabbitMQ;
 
 public class Program
 {
@@ -318,6 +319,24 @@ public class Program
             });
         });
         #endregion
+
+        #region RabbitMQ
+        // 配置RabbitMQ选项
+        builder.Services.Configure<RabbitMQOptions>(builder.Configuration.GetSection("RabbitMQ"));
+
+        // 注册RabbitMQHelper为单例服务
+        builder.Services.AddSingleton(serviceProvider =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<RabbitMQOptions>>().Value;
+            var logger = serviceProvider.GetService<ILogger<RabbitMQHelper>>();
+
+            return new RabbitMQHelper(options, logger);
+        });
+
+        // 注册健康检查
+        builder.Services.AddHealthChecks().AddCheck<RabbitMQHealthCheck>("rabbitmq");
+        #endregion
+
         // Configure
         var app = builder.Build();
 
@@ -346,8 +365,9 @@ public class Program
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         // 多租户中间件
         app.UseMiddleware<TenantInfoMiddleware>();
+
         #region ETAG缓存中间件
-        app.UseHttpCacheHeaders();
+        //app.UseHttpCacheHeaders();
         #endregion
 
         #region 响应缓存中间件
