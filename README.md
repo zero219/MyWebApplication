@@ -1,5 +1,13 @@
-MyWebApplication
+## 后台管理系统
 
-1、Dapper
+**技术栈**：
 
-2、使用Autoface实现aop
+- ASP.NET6+EF+三层架构
+- Autoface
+- Log4Net
+- Identity验证
+- JWT
+- Swagger
+- Quartz
+- Redis
+- RabbitMQ
