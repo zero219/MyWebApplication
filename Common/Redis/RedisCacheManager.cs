@@ -15,7 +15,7 @@ namespace Common.Redis
     /// <summary>
     /// Redis
     /// </summary>
-    public class RedisCacheManager : IRedisCacheManager
+    public class RedisCacheManager : IRedisCacheManager,IDisposable
     {
         /// <summary>
         /// 默认时间
@@ -27,14 +27,24 @@ namespace Common.Redis
         /// </summary>
         private const string RedisDataKey = "MyRedis";
 
-        //连接字符串
+        // 连接字符串 
         private readonly string _connectionString;
-        //实例名称
+
+        // 实例名称
         private readonly string _instanceName;
-        //默认数据库
+
+        // 默认数据库
         private readonly int _defaultDB;
 
+        /// <summary>
+        /// Redis连接复用器缓存（线程安全）
+        /// </summary>
         private readonly ConcurrentDictionary<string, ConnectionMultiplexer> _connections;
+
+        /// <summary>
+        /// 释放标志
+        /// </summary>
+        private bool _disposed = false;
         public RedisCacheManager(string connectionString, string instanceName, int defaultDB = 0)
         {
             _connectionString = connectionString;
@@ -475,20 +485,6 @@ namespace Common.Redis
         }
         #endregion
 
-        /// <summary>
-        /// 释放资源
-        /// </summary>
-        public void Dispose()
-        {
-            if (_connections != null && _connections.Count > 0)
-            {
-                foreach (var item in _connections.Values)
-                {
-                    item.Close();
-                }
-            }
-        }
-
         #region 缓存穿透、击穿
 
         public async Task<bool> BloomAddAsync(RedisKey key, RedisValue value)
@@ -718,16 +714,38 @@ namespace Common.Redis
         }
 
         #endregion
-    }
-
-
-    public class RedisData
-    {
-        public object obj { get; set; }
 
         /// <summary>
-        /// 到期时间
+        /// 释放资源
         /// </summary>
-        public long? expireTime { get; set; }
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this); // 告诉GC不必再调用终结器
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+
+            if (disposing)
+            {
+                // 释放托管资源
+                foreach (var conn in _connections.Values)
+                {
+                    conn?.Dispose();
+                }
+                _connections.Clear();
+            }
+
+            // 如果有非托管资源，也在这里释放
+
+            _disposed = true;
+        }
+
+        ~RedisCacheManager()
+        {
+            Dispose(false); // 防御性调用，确保即使用户忘了调用 Dispose() 也能释放
+        }
     }
 }
