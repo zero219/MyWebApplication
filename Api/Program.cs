@@ -45,7 +45,7 @@ public class Program
 
         var builder = WebApplication.CreateBuilder(args);
 
-        //Autofac容器
+        // Autofac容器
         builder.Host.UseServiceProviderFactory(new AutofacServiceProviderFactory());
         builder.Host.ConfigureContainer<ContainerBuilder>(containerBuilder =>
         {
@@ -367,7 +367,7 @@ public class Program
         app.UseMiddleware<TenantInfoMiddleware>();
 
         #region ETAG缓存中间件
-        //app.UseHttpCacheHeaders();
+        // app.UseHttpCacheHeaders();
         #endregion
 
         #region 响应缓存中间件
@@ -375,35 +375,32 @@ public class Program
         #endregion
 
         #region Swagger
-        //启用Swagger中间件
+        // 启用Swagger中间件
         app.UseSwagger();
 
-        //配置SwaggerUI
+        // 配置SwaggerUI
         app.UseSwaggerUI(c =>
         {
             c.SwaggerEndpoint($"/swagger/v1/swagger.json", $"{apiName} V1");
 
-            //路径配置，设置为空，表示直接访问该文件，设置根节点访问 删掉这句
-            //c.RoutePrefix = string.Empty;
+            // 路径配置，设置为空，表示直接访问该文件，设置根节点访问 删掉这句
+            // c.RoutePrefix = string.Empty;
         });
         #endregion
 
-        //路由中间件
+        // 路由中间件
         app.UseRouting();
 
         #region 跨域中间件
         app.UseCors("any");
         #endregion
 
-        //认证中间件
+        // 认证中间件
         app.UseAuthentication();
-        //授权中间件
+        // 授权中间件
         app.UseAuthorization();
-        //端点
-        app.UseEndpoints(endpoints =>
-        {
-            endpoints.MapControllers();
-        });
+
+        app.MapControllers();
 
         await app.RunAsync();
     }

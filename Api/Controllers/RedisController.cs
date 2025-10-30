@@ -1,19 +1,20 @@
-﻿using Common.Redis;
+﻿using AutoMapper;
+using Common.Redis;
+using Entity.Dtos;
+using Entity.Dtos.SeckillVoucherDto;
+using Entity.Models;
 using IBll;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
-using Entity.Models;
-using System.Linq;
-using Entity.Dtos;
-using AutoMapper;
-using Entity.Dtos.SeckillVoucherDto;
-using System.Threading;
 using StackExchange.Redis;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Api.Controllers
 {
@@ -60,82 +61,37 @@ namespace Api.Controllers
             var company = await _companyService.QueryWhere(p => p.Id == Guid.Parse("bbdee09c-089b-4d30-bece-44df59237100")).FirstOrDefaultAsync();
             var companyStr = JsonConvert.SerializeObject(company);
             var setKey = _redisCacheManager.SetAsync(key, companyStr, new TimeSpan(0, 0, 59));
+            _redisCacheManager.GetRedisData().HashSet("user:1001", "name", "Alice");
+
+            // 多个字段设置
+            HashEntry[] entries = { new HashEntry("age", 30), new HashEntry("email", "alice@example.com"), new HashEntry(1, "{name:\"tom\"}"), };
+            _redisCacheManager.GetRedisData().HashSet("user:1001", entries);
+
+
+            await _redisCacheManager.GetRedisData().SetAddAsync("set:A", new RedisValue[] { "a", "b", "c" });
+            await _redisCacheManager.GetRedisData().SetAddAsync("set:B", new RedisValue[] { 1, "c", "d" });
             return Ok(company);
         }
 
-
         /// <summary>
-        /// 测试缓存穿透
+        /// 添加购物车
         /// </summary>
-        /// <param name="id"></param>
         /// <returns></returns>
-        [HttpGet("cachePenetration")]
-        public IActionResult CachePenetration(string id)
+        [HttpPost("addToCar")]
+        public async Task<IActionResult> AddToCarAsync()
         {
-            CompanyDto companyDto = new CompanyDto();
-            var result = _redisCacheManager.CachePenetration("cachePenetration", companyDto, id, (id) =>
-             {
-                 var company = _companyService.QueryWhere(p => p.Id == Guid.Parse(id)).FirstOrDefault();
-                 var companyDtos = _mapper.Map<CompanyDto>(company);
-                 return companyDtos;
-             }, new TimeSpan(0, 0, 30, 0));
-            if (result == null)
-            {
-                return Ok("您输入的信息有误");
-            }
-            return Ok(result);
-        }
+            string key = $"cart:001";
+            Dictionary<string, dynamic> dict = new Dictionary<string, dynamic>();
+            dict.Add("1", new { productId = 1, ProductName = $"商品-1", price = 10.00 });
+            dict.Add("2", new { productId = 2, ProductName = $"商品-2", price = 20.00 });
+            dict.Add("3", new { productId = 3, ProductName = $"商品-3", price = 80.00 });
+            dict.Add("4", new { productId = 4, ProductName = $"商品-4", price = 80.00 });
+            dict.Add("5", new { productId = 5, ProductName = $"商品-5", price = 90.00 });
+            await _redisCacheManager.HashSetAsync(key, dict);
 
-        /// <summary>
-        /// 测试缓存击穿-互斥锁
-        /// </summary>
-        /// <param name="id"></param>
-        /// <returns></returns>
-        [HttpGet("cacheBreakdownLock")]
-        public IActionResult CacheBreakdownLock(string id)
-        {
-            CompanyDto companyDto = new CompanyDto();
-            var result = _redisCacheManager.CacheBreakdownLock("cacheBreakdownLock", companyDto, id, (id) =>
-            {
-                var company = _companyService.QueryWhere(p => p.Id == Guid.Parse(id)).FirstOrDefault();
-                var companyDtos = _mapper.Map<CompanyDto>(company);
-                return companyDtos;
-            }, new TimeSpan(0, 0, 30, 0));
-            if (result == null)
-            {
-                return Ok("您输入的信息有误");
-            }
-            return Ok(result);
-        }
+            var result = await _redisCacheManager.HashGetAllAsync<Dictionary<string, dynamic>>(key);
 
-        /// <summary>
-        /// 测试缓存击穿-逻辑过期
-        /// </summary>
-        /// <param name="id"></param>
-        /// <returns></returns>
-        [HttpGet("cacheBreakdownTimeSpan")]
-        public IActionResult CacheBreakdownTimeSpan(string id)
-        {
-            var company = _companyService.QueryWhere(p => p.Id == Guid.Parse(id)).FirstOrDefault();
-            if (company == null)
-            {
-                return NotFound();
-            }
-            var companyDtos = _mapper.Map<CompanyDto>(company);
-            //RedisData redisData = new RedisData();
-            //redisData.obj = companyDtos;
-            //redisData.expireTime = (DateTime.Now.ToUniversalTime().Ticks - 621355968000000000) / 10000000;
-            //var a = _redisCacheManager.Set(string.Format("{0}:{1}", "cacheBreakdownTimeSpan", id), JsonConvert.SerializeObject(redisData), new TimeSpan(0, 0, 30, 0));
-            CompanyDto companyDto = new CompanyDto();
-            var result = _redisCacheManager.CacheBreakdownTimeSpan("cacheBreakdownTimeSpan", companyDto, id, (id) =>
-            {
-                return companyDtos;
-            }, new TimeSpan(0, 0, 30, 0));
-            if (result == null)
-            {
-                return Ok("您输入的信息有误");
-            }
-            return Ok(result);
+            return Ok("添加购物车成功");
         }
 
         /// <summary>
@@ -256,5 +212,77 @@ namespace Api.Controllers
             var result = await _signService.SignCountAsync(userId);
             return Ok(result);
         }
+
+        #region 缓存穿透、缓存击穿
+        /// <summary>
+        /// 测试缓存穿透
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpGet("cachePenetration")]
+        public IActionResult CachePenetration(string id)
+        {
+            CompanyDto companyDto = new CompanyDto();
+            var result = _redisCacheManager.CachePenetration("cachePenetration", companyDto, id, (id) =>
+            {
+                var company = _companyService.QueryWhere(p => p.Id == Guid.Parse(id)).FirstOrDefault();
+                var companyDtos = _mapper.Map<CompanyDto>(company);
+                return companyDtos;
+            }, new TimeSpan(0, 0, 30, 0));
+            if (result == null)
+            {
+                return Ok("您输入的信息有误");
+            }
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 测试缓存击穿-互斥锁
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpGet("cacheBreakdownLock")]
+        public IActionResult CacheBreakdownLock(string id)
+        {
+            CompanyDto companyDto = new CompanyDto();
+            var result = _redisCacheManager.CacheBreakdownLock("cacheBreakdownLock", companyDto, id, (id) =>
+            {
+                var company = _companyService.QueryWhere(p => p.Id == Guid.Parse(id)).FirstOrDefault();
+                var companyDtos = _mapper.Map<CompanyDto>(company);
+                return companyDtos;
+            }, new TimeSpan(0, 0, 30, 0));
+            if (result == null)
+            {
+                return Ok("您输入的信息有误");
+            }
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 测试缓存击穿-逻辑过期
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        [HttpGet("cacheBreakdownTimeSpan")]
+        public IActionResult CacheBreakdownTimeSpan(string id)
+        {
+            var company = _companyService.QueryWhere(p => p.Id == Guid.Parse(id)).FirstOrDefault();
+            if (company == null)
+            {
+                return NotFound();
+            }
+            var companyDtos = _mapper.Map<CompanyDto>(company);
+            CompanyDto companyDto = new CompanyDto();
+            var result = _redisCacheManager.CacheBreakdownTimeSpan("cacheBreakdownTimeSpan", companyDto, id, (id) =>
+            {
+                return companyDtos;
+            }, new TimeSpan(0, 0, 30, 0));
+            if (result == null)
+            {
+                return Ok("您输入的信息有误");
+            }
+            return Ok(result);
+        }
+        #endregion
     }
 }

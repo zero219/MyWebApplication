@@ -1,21 +1,23 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using StackExchange.Redis;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-using System.Threading;
 using System.ComponentModel;
+using System.Linq;
 using System.Linq.Expressions;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Common.Redis
 {
     /// <summary>
     /// Redis
     /// </summary>
-    public class RedisCacheManager : IRedisCacheManager,IDisposable
+    public class RedisCacheManager : IRedisCacheManager, IDisposable
     {
         /// <summary>
         /// 默认时间
@@ -27,13 +29,19 @@ namespace Common.Redis
         /// </summary>
         private const string RedisDataKey = "MyRedis";
 
-        // 连接字符串 
+        /// <summary>
+        /// 连接字符串 
+        /// </summary>
         private readonly string _connectionString;
 
-        // 实例名称
+        /// <summary>
+        /// 实例名称
+        /// </summary>
         private readonly string _instanceName;
 
-        // 默认数据库
+        /// <summary>
+        ///  默认数据库
+        /// </summary>
         private readonly int _defaultDB;
 
         /// <summary>
@@ -45,6 +53,7 @@ namespace Common.Redis
         /// 释放标志
         /// </summary>
         private bool _disposed = false;
+
         public RedisCacheManager(string connectionString, string instanceName, int defaultDB = 0)
         {
             _connectionString = connectionString;
@@ -76,6 +85,7 @@ namespace Common.Redis
             return string.Format("{0}:{1}", RedisDataKey, key);
         }
 
+        #region String类型
         /// <summary>
         /// 获取缓存值
         /// </summary>
@@ -109,11 +119,7 @@ namespace Common.Redis
             {
                 cacheTime = defaultTimeSpan;
             }
-            if (value != null)
-            {
-                return GetRedisData().StringSet(DataKey(key), value, cacheTime);
-            }
-            return false;
+            return GetRedisData().StringSet(DataKey(key), value, cacheTime);
         }
 
         /// <summary>
@@ -129,11 +135,8 @@ namespace Common.Redis
             {
                 cacheTime = defaultTimeSpan;
             }
-            if (value != null)
-            {
-                return await GetRedisData().StringSetAsync(DataKey(key), value, cacheTime);
-            }
-            return false;
+
+            return await GetRedisData().StringSetAsync(DataKey(key), value, cacheTime);
         }
 
         /// <summary>
@@ -149,11 +152,8 @@ namespace Common.Redis
             {
                 cacheTime = defaultTimeSpan;
             }
-            if (value != null)
-            {
-                return GetRedisData().StringSet(DataKey(key), value, cacheTime, When.NotExists, CommandFlags.None);
-            }
-            return false;
+            return GetRedisData().StringSet(DataKey(key), value, cacheTime, When.NotExists, CommandFlags.None);
+
         }
 
         /// <summary>
@@ -197,7 +197,104 @@ namespace Common.Redis
             return await GetRedisData().KeyDeleteAsync(DataKey(key));
         }
 
-        #region set集合
+        #endregion
+
+        #region Hash类型
+        /// <summary>
+        /// 设置单个字段
+        /// </summary>
+        public async Task HashSetAsync<T>(string key, string field, T value)
+        {
+            string json = JsonConvert.SerializeObject(value);
+            await GetRedisData().HashSetAsync(DataKey(key), field, json);
+        }
+
+        /// <summary>
+        /// 设置多个字段
+        /// </summary>
+        public async Task HashSetAsync<T>(string key, Dictionary<string, T> values)
+        {
+            var entries = values.Select(x => new HashEntry(x.Key, JsonConvert.SerializeObject(x.Value))).ToArray();
+            await GetRedisData().HashSetAsync(DataKey(key), entries);
+        }
+
+        /// <summary>
+        /// 获取单个字段
+        /// </summary>
+        public async Task<T> HashGetAsync<T>(string key, string field)
+        {
+            var value = await GetRedisData().HashGetAsync(DataKey(key), field);
+            if (value.IsNullOrEmpty) return default;
+            return JsonConvert.DeserializeObject<T>(value);
+        }
+
+        /// <summary>
+        /// 获取整个哈希对象
+        /// </summary>
+        public async Task<Dictionary<string, T>> HashGetAllAsync<T>(string key)
+        {
+            var entries = await GetRedisData().HashGetAllAsync(DataKey(key));
+            return entries.ToDictionary(
+                e => e.Name.ToString(),
+                e => JsonConvert.DeserializeObject<T>(e.Value) ?? throw new Exception($"反序列化字段 {e.Name} 失败")
+            );
+        }
+
+        /// <summary>
+        /// 删除一个或多个字段
+        /// </summary>
+        public async Task<bool> HashDeleteAsync(string key, params string[] fields)
+        {
+            RedisValue[] values = fields.Select(f => (RedisValue)f).ToArray();
+            long count = await GetRedisData().HashDeleteAsync(DataKey(key), values);
+            return count > 0;
+        }
+
+        /// <summary>
+        /// 判断字段是否存在
+        /// </summary>
+        public async Task<bool> HashExistsAsync(string key, string field)
+        {
+            return await GetRedisData().HashExistsAsync(DataKey(key), field);
+        }
+
+        /// <summary>
+        /// 获取字段数量
+        /// </summary>
+        public async Task<long> HashLengthAsync(string key)
+        {
+            return await GetRedisData().HashLengthAsync(DataKey(key));
+        }
+
+        /// <summary>
+        /// 数值字段自增
+        /// </summary>
+        public async Task<double> HashIncrementAsync(string key, string field, double value = 1)
+        {
+            return await GetRedisData().HashIncrementAsync(DataKey(key), field, value);
+        }
+
+        /// <summary>
+        /// 数值字段自减
+        /// </summary>
+        public async Task<double> HashDecrementAsync(string key, string field, double value = 1)
+        {
+            return await GetRedisData().HashDecrementAsync(DataKey(key), field, value);
+        }
+
+        /// <summary>
+        /// 扫描哈希内容（可选匹配模式）
+        /// </summary>
+        public IEnumerable<KeyValuePair<string, string>> HashScan(string key, string pattern = "*")
+        {
+            foreach (var entry in GetRedisData().HashScan(DataKey(key), pattern))
+            {
+                yield return new KeyValuePair<string, string>(entry.Name, entry.Value);
+            }
+        }
+        #endregion
+
+        #region Set集合
         /// <summary>
         /// 查询
         /// </summary>
@@ -703,14 +800,12 @@ namespace Common.Redis
 
         public RedisResult LuaScripts(string str, object obj)
         {
-            var result = GetRedisData().ScriptEvaluate(LuaScript.Prepare(str), obj);
-            return result;
+            return GetRedisData().ScriptEvaluate(LuaScript.Prepare(str), obj);
         }
 
         public async Task<RedisResult> ExecuteAsync(string str, params object[] obj)
         {
-            var result = await GetRedisData().ExecuteAsync(str, obj);
-            return result;
+            return await GetRedisData().ExecuteAsync(str, obj);
         }
 
         #endregion

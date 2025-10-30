@@ -44,6 +44,7 @@ namespace Bll
             int continuousDays = CountContinuousSignInDays(long.Parse(((RedisValue[])result)[0].ToString()), 6);
             return continuousDays;
         }
+
         private int CountContinuousSignInDays(long signInBitmap, int days)
         {
             // 将签到情况转换为二进制字符串
