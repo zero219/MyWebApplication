@@ -82,14 +82,20 @@ namespace Api.Controllers
 
             var result = await _redisCacheManager.HashGetAllAsync<Dictionary<string, dynamic>>(key);
 
+            // 测试Set集合
             await _redisCacheManager.SetAddBatchAsync("mySet", new[] { "apple", "banana", "orange" }, TimeSpan.FromMinutes(1));
 
+            // 测试SortedSet有序集合
             var data = new List<SortedSetEntry>();
             for (int i = 1; i <= 10000; i++)
             {
                 data.Add(new SortedSetEntry($"member{i}", i));
             }
             await _redisCacheManager.SortedSetAddBatchAsync("myZSet", data);
+            // 测试List列表
+            _redisCacheManager.ListLeftPushBatch("myListLeft", new[] { "a", "b", "c" });
+            _redisCacheManager.ListRightPushBatch("myListRight", new[] { "a", "b", "c" });
+
             return Ok("添加购物车成功");
         }
 

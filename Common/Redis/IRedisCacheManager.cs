@@ -1,4 +1,5 @@
-﻿using StackExchange.Redis;
+﻿using Newtonsoft.Json;
+using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -97,6 +98,88 @@ namespace Common.Redis
         /// 扫描哈希内容（可选匹配模式）
         /// </summary>
         IEnumerable<KeyValuePair<string, string>> HashScan(string key, string pattern = "*");
+
+        #region List集合
+        /// <summary>
+        /// 左入队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="item"></param>
+        /// <returns></returns>
+        long ListLeftPush<T>(string key, T item);
+
+        /// <summary>
+        /// 右入队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="item"></param>
+        /// <returns></returns>
+        long ListRightPush<T>(string key, T item);
+
+        /// <summary>
+        /// 左批量入队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="items"></param>
+        /// <returns></returns>
+        long ListLeftPushBatch<T>(string key, IEnumerable<T> items);
+
+        /// <summary>
+        /// 右批量入队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="items"></param>
+        /// <returns></returns>
+        long ListRightPushBatch<T>(string key, IEnumerable<T> items);
+
+        /// <summary>
+        /// 左出队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        T ListLeftPop<T>(string key);
+
+        /// <summary>
+        /// 右出队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        T ListRightPop<T>(string key);
+
+        /// <summary>
+        /// 获取列表长度
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        long ListLength(string key);
+
+        /// <summary>
+        /// 获取范围
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="start"></param>
+        /// <param name="stop"></param>
+        /// <returns></returns>
+        List<T> ListRange<T>(string key, long start = 0, long stop = -1);
+
+
+        /// <summary>
+        /// 删除指定值，count=0 删除所有
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="count"></param>
+        /// <returns></returns>
+        long ListRemove<T>(string key, T value, long count = 0);
+        #endregion
 
         Task<bool> SetContainsAsync(string key, string value);
 

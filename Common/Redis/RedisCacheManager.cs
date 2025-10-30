@@ -282,6 +282,130 @@ namespace Common.Redis
         }
         #endregion
 
+        #region List集合
+        /// <summary>
+        /// 左入队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="item"></param>
+        /// <returns></returns>
+        public long ListLeftPush<T>(string key, T item)
+        {
+            return _db.ListLeftPush(DataKey(key), JsonConvert.SerializeObject(item));
+        }
+
+        /// <summary>
+        /// 右入队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="item"></param>
+        /// <returns></returns>
+        public long ListRightPush<T>(string key, T item)
+        {
+            return _db.ListRightPush(DataKey(key), JsonConvert.SerializeObject(item));
+        }
+
+        /// <summary>
+        /// 左批量入队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="items"></param>
+        /// <returns></returns>
+        public long ListLeftPushBatch<T>(string key, IEnumerable<T> items)
+        {
+            var redisValues = new List<RedisValue>();
+            foreach (var item in items)
+                redisValues.Add(JsonConvert.SerializeObject(item));
+
+            return _db.ListLeftPush(DataKey(key), redisValues.ToArray());
+        }
+
+        /// <summary>
+        /// 右批量入队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="items"></param>
+        /// <returns></returns>
+        public long ListRightPushBatch<T>(string key, IEnumerable<T> items)
+        {
+            var redisValues = new List<RedisValue>();
+            foreach (var item in items)
+                redisValues.Add(JsonConvert.SerializeObject(item));
+
+            return _db.ListRightPush(DataKey(key), redisValues.ToArray());
+        }
+
+        /// <summary>
+        /// 左出队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public T ListLeftPop<T>(string key)
+        {
+            var value = _db.ListLeftPop(DataKey(key));
+            return JsonConvert.DeserializeObject<T>(value);
+        }
+
+        /// <summary>
+        /// 右出队
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public T ListRightPop<T>(string key)
+        {
+            var value = _db.ListRightPop(DataKey(key));
+            return JsonConvert.DeserializeObject<T>(value);
+        }
+
+        /// <summary>
+        /// 获取列表长度
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public long ListLength(string key)
+        {
+            return _db.ListLength(DataKey(key));
+        }
+
+        /// <summary>
+        /// 获取范围
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="start"></param>
+        /// <param name="stop"></param>
+        /// <returns></returns>
+        public List<T> ListRange<T>(string key, long start = 0, long stop = -1)
+        {
+            var values = _db.ListRange(DataKey(key), start, stop);
+            var result = new List<T>();
+            foreach (var value in values)
+                result.Add(JsonConvert.DeserializeObject<T>(value));
+
+            return result;
+        }
+
+        /// <summary>
+        /// 删除指定值，count=0 删除所有
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="count"></param>
+        /// <returns></returns>
+        public long ListRemove<T>(string key, T value, long count = 0)
+        {
+            return _db.ListRemove(DataKey(key), JsonConvert.SerializeObject(value), count);
+        }
+
+        #endregion
+
         #region Set集合
 
         /// <summary>
