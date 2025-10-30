@@ -2,6 +2,7 @@
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -9,15 +10,17 @@ namespace Common.Redis
 {
     public interface IRedisCacheManager
     {
+        #region String类型
+
+        bool StrSet<T>(string key, T value, TimeSpan? cacheTime = null);
+
+        Task<bool> StrSetAsync<T>(string key, T value, TimeSpan? cacheTime = null);
+
         string StrGet(string key);
 
         Task<string> StrGetAsync(string key);
 
-        bool StrSet(string key, string value, TimeSpan? cacheTime = null);
-
-        Task<bool> StrSetAsync(string key, string value, TimeSpan? cacheTime = null);
-
-        bool StrSetNx(string key, string value, TimeSpan? cacheTime = null);
+        bool StrSetNx<T>(string key, T value, TimeSpan? cacheTime = null);
 
         /// <summary>
         /// 自增
@@ -40,15 +43,18 @@ namespace Common.Redis
         /// </summary>
         /// <param name="keyValues"></param>
         /// <returns></returns>
-        bool StrBatch(Dictionary<string, string> keyValues);
+        bool StrSetBatch(Dictionary<string, string> keyValues);
 
         /// <summary>
         /// 批量获取值
         /// </summary>
         /// <param name="keys"></param>
         /// <returns></returns>
-        public Dictionary<string, string> GetBatch(IEnumerable<string> keys);
+        public Dictionary<string, string> StrGetBatch(IEnumerable<string> keys);
 
+        #endregion
+
+        #region Hash类型
         /// <summary>
         /// 设置单个字段
         /// </summary>
@@ -98,6 +104,8 @@ namespace Common.Redis
         /// 扫描哈希内容（可选匹配模式）
         /// </summary>
         IEnumerable<KeyValuePair<string, string>> HashScan(string key, string pattern = "*");
+
+        #endregion
 
         #region List集合
         /// <summary>
@@ -181,39 +189,119 @@ namespace Common.Redis
         long ListRemove<T>(string key, T value, long count = 0);
         #endregion
 
-        Task<bool> SetContainsAsync(string key, string value);
+        #region Set类型
 
         /// <summary>
-        /// 获取所有成员
+        /// 判断元素是否存在
         /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        Task<bool> SetContainsAsync<T>(string key, T value);
+
+        /// <summary>
+        /// 获取所有成员（泛型）
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
         /// <param name="key"></param>
         /// <returns></returns>
-        HashSet<string> SetGetAll(string key);
-
-        Task<bool> SetAddAsync(string key, string value, TimeSpan? cacheTime = null);
+        Task<HashSet<T>> SetGetAllAsync<T>(string key);
 
         /// <summary>
-        /// 批量添加
+        /// 添加
         /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="cacheTime"></param>
+        /// <returns></returns>
+        Task<bool> SetAddAsync<T>(string key, T value, TimeSpan? cacheTime = null);
+
+        /// <summary>
+        /// 批量添加元素
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
         /// <param name="key"></param>
         /// <param name="values"></param>
         /// <param name="cacheTime"></param>
         /// <returns></returns>
-        Task<long> SetAddBatchAsync(string key, IEnumerable<string> values, TimeSpan? cacheTime = null);
+        Task<long> SetAddBatchAsync<T>(string key, IEnumerable<T> values, TimeSpan? cacheTime = null);
 
-        Task<bool> SetRemoveAsync(string key, string value);
+        /// <summary>
+        /// 移除
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        Task<bool> SetRemoveAsync<T>(string key, T value);
 
+        /// <summary>
+        /// 求并集、交集、差集
+        /// </summary>
+        /// <param name="first"></param>
+        /// <param name="second"></param>
+        /// <returns></returns>
         Task<RedisValue[]> SetCombineAsync(int num, string first, string second);
+        #endregion
 
-        Task<double?> SortedSetScoreAsync(string key, string member);
+        #region SortedSet类型
+        /// <summary>
+        /// 添加
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="member"></param>
+        /// <param name="score"></param>
+        /// <param name="cacheTime"></param>
+        /// <returns></returns>
+        Task<bool> SortedSetAddAsync<T>(string key, T member, double score, TimeSpan? cacheTime = null);
 
-        Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(string key, long start, long stop);
+        /// <summary>
+        /// 批量添加
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="values"></param>
+        /// <param name="cacheTime"></param>
+        /// <returns></returns>
+        Task<long> SortedSetAddBatchAsync<T>(string key, IEnumerable<(T value, double score)> values, TimeSpan? cacheTime = null);
 
-        Task<bool> SortedSetAddAsync(string key, string member, double score);
-
+        /// <summary>
+        /// 高性能批量添加 SortedSet 元素
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="entries"></param>
+        /// <returns></returns>
         Task SortedSetAddBatchAsync(string key, IEnumerable<SortedSetEntry> entries);
 
-        Task<bool> SortedSetRemoveAsync(string key, string member);
+        /// <summary>
+        /// SortedSet是否存在
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="member"></param>
+        /// <returns></returns>
+        Task<double?> SortedSetScoreAsync<T>(string key, T member);
+
+        /// <summary>
+        /// 获取范围数据，索引0开始
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="start"></param>
+        /// <param name="stop"></param>
+        /// <returns></returns>
+        Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(string key, long start, long stop);
+
+        /// <summary>
+        /// 删除
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="member"></param>
+        /// <returns></returns>
+        Task<bool> SortedSetRemoveAsync<T>(string key, T member);
+
+        #endregion
 
         Task<long> GeoAddAsync(string key, GeoEntry[] entry);
 

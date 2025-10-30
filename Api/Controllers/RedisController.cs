@@ -121,16 +121,16 @@ namespace Api.Controllers
         {
             var result = string.Empty;
             var key = string.Format("{0}:{1}", CacheKeys.ISLIKE_KEY, "blog");
-            var flag = await _redisCacheManager.SortedSetScoreAsync(key, id.ToString());
+            var flag = await _redisCacheManager.SortedSetScoreAsync(key, id);
             if (flag == null)
             {
                 // 数据点赞库数量+1
-                result = await _redisCacheManager.SortedSetAddAsync(key, id.ToString(), double.Parse(DateTime.Now.ToString("yyyyMMddHHmmsss"))) ? "点赞成功" : "点赞失败";
+                result = await _redisCacheManager.SortedSetAddAsync(key, id, double.Parse(DateTime.Now.ToString("yyyyMMddHHmmsss"))) ? "点赞成功" : "点赞失败";
             }
             else
             {
                 // 数据点赞库数量-1
-                result = await _redisCacheManager.SortedSetRemoveAsync(key, id.ToString()) ? "取消点赞成功" : "取消点赞失败";
+                result = await _redisCacheManager.SortedSetRemoveAsync(key, id) ? "取消点赞成功" : "取消点赞失败";
 
             }
             return Ok(result);

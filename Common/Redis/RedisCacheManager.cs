@@ -1,5 +1,6 @@
 ﻿using Common.Models;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using StackExchange.Redis;
 using System;
 using System.Collections.Concurrent;
@@ -74,6 +75,36 @@ namespace Common.Redis
         }
 
         #region String类型
+        
+        /// <summary>
+        /// 新增
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="cacheTime"></param>
+        public bool StrSet<T>(string key, T value, TimeSpan? cacheTime = null)
+        {
+            string json = JsonConvert.SerializeObject(value);
+            var result = _db.StringSet(DataKey(key), json);
+            this.KeyAddExpire(key, cacheTime);
+            return result;
+        }
+
+        /// <summary>
+        /// 保存(使用该异步方法时需要在后面使用.Wait())
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="cacheTime"></param>
+        /// <returns></returns>
+        public async Task<bool> StrSetAsync<T>(string key, T value, TimeSpan? cacheTime = null)
+        {
+            string json = JsonConvert.SerializeObject(value);
+            var result = await _db.StringSetAsync(DataKey(key), json);
+            await this.KeyAddExpireAsync(key, cacheTime);
+            return result;
+        }
+
         /// <summary>
         /// 获取缓存值
         /// </summary>
@@ -95,42 +126,16 @@ namespace Common.Redis
         }
 
         /// <summary>
-        /// 新增
-        /// </summary>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="cacheTime"></param>
-        public bool StrSet(string key, string value, TimeSpan? cacheTime = null)
-        {
-            var result = _db.StringSet(DataKey(key), value);
-            this.KeyAddExpire(key, cacheTime);
-            return result;
-        }
-
-        /// <summary>
-        /// 保存(使用该异步方法时需要在后面使用.Wait())
-        /// </summary>
-        /// <param name="key"></param>
-        /// <param name="value"></param>
-        /// <param name="cacheTime"></param>
-        /// <returns></returns>
-        public async Task<bool> StrSetAsync(string key, string value, TimeSpan? cacheTime = null)
-        {
-            var result = await _db.StringSetAsync(DataKey(key), value);
-            await this.KeyAddExpireAsync(key, cacheTime);
-            return result;
-        }
-
-        /// <summary>
         /// 判断key是否存在，不存在就创建
         /// </summary>
         /// <param name="key"></param>
         /// <param name="value"></param>
         /// <param name="cacheTime"></param>
         /// <returns></returns>
-        public bool StrSetNx(string key, string value, TimeSpan? cacheTime = null)
+        public bool StrSetNx<T>(string key, T value, TimeSpan? cacheTime = null)
         {
-            return _db.StringSet(DataKey(key), value, cacheTime, When.NotExists, CommandFlags.None); ;
+            string json = JsonConvert.SerializeObject(value);
+            return _db.StringSet(DataKey(key), json, cacheTime, When.NotExists, CommandFlags.None); ;
         }
 
         /// <summary>
@@ -160,7 +165,7 @@ namespace Common.Redis
         /// </summary>
         /// <param name="keyValues"></param>
         /// <returns></returns>
-        public bool StrBatch(Dictionary<string, string> keyValues)
+        public bool StrSetBatch(Dictionary<string, string> keyValues)
         {
             var redisKeyValues = keyValues.Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value)).ToArray();
             return _db.StringSet(redisKeyValues);
@@ -171,7 +176,7 @@ namespace Common.Redis
         /// </summary>
         /// <param name="keys"></param>
         /// <returns></returns>
-        public Dictionary<string, string> GetBatch(IEnumerable<string> keys)
+        public Dictionary<string, string> StrGetBatch(IEnumerable<string> keys)
         {
             var redisKeys = keys.Select(k => (RedisKey)k).ToArray();
             RedisValue[] values = _db.StringGet(redisKeys);
@@ -414,20 +419,23 @@ namespace Common.Redis
         /// <param name="key"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public async Task<bool> SetContainsAsync(string key, string value)
+        public async Task<bool> SetContainsAsync<T>(string key, T value)
         {
-            return await _db.SetContainsAsync(DataKey(key), value);
+            var json = JsonConvert.SerializeObject(value);
+            return await _db.SetContainsAsync(DataKey(key), json);
         }
 
         /// <summary>
-        /// 获取所有成员
+        /// 获取所有成员（泛型）
         /// </summary>
+        /// <typeparam name="T"></typeparam>
         /// <param name="key"></param>
         /// <returns></returns>
-        public HashSet<string> SetGetAll(string key)
+        public async Task<HashSet<T>> SetGetAllAsync<T>(string key)
         {
-            var values = _db.SetMembers(key);
-            return new HashSet<string>(values.Select(v => (string)v));
+            var values = await _db.SetMembersAsync(DataKey(key));
+            return new HashSet<T>(values
+                .Select(v => JsonConvert.DeserializeObject<T>(v)));
         }
 
         /// <summary>
@@ -437,26 +445,31 @@ namespace Common.Redis
         /// <param name="value"></param>
         /// <param name="cacheTime"></param>
         /// <returns></returns>
-        public async Task<bool> SetAddAsync(string key, string value, TimeSpan? cacheTime = null)
+        public async Task<bool> SetAddAsync<T>(string key, T value, TimeSpan? cacheTime = null)
         {
-            var result = await _db.SetAddAsync(DataKey(key), value);
+            var json = JsonConvert.SerializeObject(value);
+            var result = await _db.SetAddAsync(DataKey(key), json);
             await this.KeyAddExpireAsync(key, cacheTime);
             return result;
         }
 
         /// <summary>
-        /// 批量添加
+        /// 批量添加元素
         /// </summary>
+        /// <typeparam name="T"></typeparam>
         /// <param name="key"></param>
         /// <param name="values"></param>
-        /// <param name="expiry"></param>
-        public async Task<long> SetAddBatchAsync(string key, IEnumerable<string> values, TimeSpan? cacheTime = null)
+        /// <param name="cacheTime"></param>
+        /// <returns></returns>
+        public async Task<long> SetAddBatchAsync<T>(string key, IEnumerable<T> values, TimeSpan? cacheTime = null)
         {
-            var redisValues = values.Select(v => (RedisValue)v).ToArray();
+            var redisValues = values
+                .Select(v => (RedisValue)JsonConvert.SerializeObject(v))
+                .ToArray();
+
             var result = await _db.SetAddAsync(DataKey(key), redisValues);
             await this.KeyAddExpireAsync(key, cacheTime);
             return result;
-
         }
         /// <summary>
         /// 移除
@@ -464,9 +477,10 @@ namespace Common.Redis
         /// <param name="key"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public async Task<bool> SetRemoveAsync(string key, string value)
+        public async Task<bool> SetRemoveAsync<T>(string key, T value)
         {
-            return await _db.SetRemoveAsync(DataKey(key), value);
+            var json = JsonConvert.SerializeObject(value);
+            return await _db.SetRemoveAsync(DataKey(key), json);
         }
 
         /// <summary>
@@ -498,37 +512,38 @@ namespace Common.Redis
         #endregion
 
         #region SortedSet
-        /// <summary>
-        /// SortedSet是否存在
-        /// </summary>
-        /// <param name="key"></param>
-        /// <param name="member"></param>
-        /// <returns></returns>
-        public async Task<double?> SortedSetScoreAsync(string key, string member)
-        {
-            return await _db.SortedSetScoreAsync(DataKey(key), member);
-        }
-        /// <summary>
-        /// 获取范围数据，索引0开始
-        /// </summary>
-        /// <param name="key"></param>
-        /// <param name="start"></param>
-        /// <param name="stop"></param>
-        /// <returns></returns>
-        public async Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(string key, long start, long stop)
-        {
-            return await _db.SortedSetRangeByRankWithScoresAsync(DataKey(key), start, stop);
-        }
+
         /// <summary>
         /// 添加
         /// </summary>
+        /// <typeparam name="T"></typeparam>
         /// <param name="key"></param>
         /// <param name="member"></param>
         /// <param name="score"></param>
+        /// <param name="cacheTime"></param>
         /// <returns></returns>
-        public async Task<bool> SortedSetAddAsync(string key, string member, double score)
+        public async Task<bool> SortedSetAddAsync<T>(string key, T member, double score, TimeSpan? cacheTime = null)
         {
-            return await _db.SortedSetAddAsync(DataKey(key), member, score);
+            var json = JsonConvert.SerializeObject(member);
+            var result = await _db.SortedSetAddAsync(DataKey(key), json, score);
+            await KeyAddExpireAsync(key, cacheTime);
+            return result;
+        }
+
+        /// <summary>
+        /// 批量添加
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="values"></param>
+        /// <param name="cacheTime"></param>
+        /// <returns></returns>
+        public async Task<long> SortedSetAddBatchAsync<T>(string key, IEnumerable<(T value, double score)> values, TimeSpan? cacheTime = null)
+        {
+            var entries = values.Select(v => new SortedSetEntry(JsonConvert.SerializeObject(v.value), v.score)).ToArray();
+            long count = await _db.SortedSetAddAsync(DataKey(key), entries);
+            await KeyAddExpireAsync(key, cacheTime);
+            return count;
         }
 
         /// <summary>
@@ -539,7 +554,7 @@ namespace Common.Redis
         public async Task SortedSetAddBatchAsync(string key, IEnumerable<SortedSetEntry> entries)
         {
             // 每批处理的元素数量
-            var batchSize = 1000; 
+            var batchSize = 1000;
             var batchList = new List<SortedSetEntry>(batchSize);
             foreach (var entry in entries)
             {
@@ -560,14 +575,40 @@ namespace Common.Redis
         }
 
         /// <summary>
-        /// 删除
+        /// SortedSet是否存在
         /// </summary>
+        /// <typeparam name="T"></typeparam>
         /// <param name="key"></param>
         /// <param name="member"></param>
         /// <returns></returns>
-        public async Task<bool> SortedSetRemoveAsync(string key, string member)
+        public async Task<double?> SortedSetScoreAsync<T>(string key, T member)
         {
-            return await _db.SortedSetRemoveAsync(DataKey(key), member);
+            var json = JsonConvert.SerializeObject(member);
+            return await _db.SortedSetScoreAsync(DataKey(key), json);
+        }
+        /// <summary>
+        /// 获取范围数据，索引0开始
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="start"></param>
+        /// <param name="stop"></param>
+        /// <returns></returns>
+        public async Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(string key, long start, long stop)
+        {
+            return await _db.SortedSetRangeByRankWithScoresAsync(DataKey(key), start, stop);
+        }
+       
+        /// <summary>
+        /// 删除
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="member"></param>
+        /// <returns></returns>
+        public async Task<bool> SortedSetRemoveAsync<T>(string key, T member)
+        {
+            var json = JsonConvert.SerializeObject(member);
+            return await _db.SortedSetRemoveAsync(DataKey(key), json);
         }
         #endregion
 

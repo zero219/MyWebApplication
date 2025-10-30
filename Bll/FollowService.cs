@@ -27,11 +27,11 @@ namespace Bll
             var key = string.Format("{0}:{1}", CacheKeys.FOLLOWS_KEY, "jerry");
             if (isFollow)
             {
-                result = await _redisCacheManager.SetAddAsync(key, followUserId.ToString()) ? "关注成功" : "您已成功关注,不需要再重复关注了";
+                result = await _redisCacheManager.SetAddAsync(key, followUserId) ? "关注成功" : "您已成功关注,不需要再重复关注了";
             }
             else
             {
-                result = await _redisCacheManager.SetRemoveAsync(key, followUserId.ToString()) ? "取消关注成功" : "您已取消了关注";
+                result = await _redisCacheManager.SetRemoveAsync(key, followUserId) ? "取消关注成功" : "您已取消了关注";
             }
             return result;
         }
