@@ -1,15 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using Microsoft.Extensions.Logging;
+﻿using Common.Models;
 using Newtonsoft.Json;
 using StackExchange.Redis;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Common.Redis
@@ -17,13 +12,8 @@ namespace Common.Redis
     /// <summary>
     /// Redis
     /// </summary>
-    public class RedisCacheManager : IRedisCacheManager, IDisposable
+    public partial class RedisCacheManager : IRedisCacheManager, IDisposable
     {
-        /// <summary>
-        /// 默认时间
-        /// </summary>
-        private readonly TimeSpan defaultTimeSpan = new TimeSpan(0, 0, 59);
-
         /// <summary>
         /// 默认key
         /// </summary>
@@ -47,7 +37,12 @@ namespace Common.Redis
         /// <summary>
         /// Redis连接复用器缓存（线程安全）
         /// </summary>
-        private readonly ConcurrentDictionary<string, ConnectionMultiplexer> _connections;
+        private readonly ConcurrentDictionary<string, ConnectionMultiplexer> _connections = new();
+
+        /// <summary>
+        /// 直接获取 Redis 数据库操作对象
+        /// </summary>
+        private readonly IDatabase _db;
 
         /// <summary>
         /// 释放标志
@@ -59,7 +54,9 @@ namespace Common.Redis
             _connectionString = connectionString;
             _instanceName = instanceName;
             _defaultDB = defaultDB;
-            _connections = new ConcurrentDictionary<string, ConnectionMultiplexer>();
+
+            // 初始化数据库,访问Redis数据库
+            _db = GetConnect().GetDatabase(_defaultDB);
         }
 
         /// <summary>
@@ -69,15 +66,6 @@ namespace Common.Redis
         private ConnectionMultiplexer GetConnect()
         {
             return _connections.GetOrAdd(_instanceName, p => ConnectionMultiplexer.Connect(_connectionString));
-        }
-
-        /// <summary>
-        /// 访问Redis数据库
-        /// </summary>
-        /// <returns></returns>
-        public IDatabase GetRedisData()
-        {
-            return GetConnect().GetDatabase(_defaultDB);
         }
 
         private string DataKey(string key)
@@ -91,9 +79,9 @@ namespace Common.Redis
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        public string Get(string key)
+        public string StrGet(string key)
         {
-            return GetRedisData().StringGet(DataKey(key));
+            return _db.StringGet(DataKey(key));
         }
 
         /// <summary>
@@ -101,10 +89,9 @@ namespace Common.Redis
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public async Task<string> GetAsync(string key)
+        public async Task<string> StrGetAsync(string key)
         {
-            return await GetRedisData().StringGetAsync(DataKey(key));
+            return await _db.StringGetAsync(DataKey(key));
         }
 
         /// <summary>
@@ -113,13 +100,11 @@ namespace Common.Redis
         /// <param name="key"></param>
         /// <param name="value"></param>
         /// <param name="cacheTime"></param>
-        public bool Set(string key, string value, TimeSpan cacheTime = default(TimeSpan))
+        public bool StrSet(string key, string value, TimeSpan? cacheTime = null)
         {
-            if (cacheTime == default(TimeSpan))
-            {
-                cacheTime = defaultTimeSpan;
-            }
-            return GetRedisData().StringSet(DataKey(key), value, cacheTime);
+            var result = _db.StringSet(DataKey(key), value);
+            this.KeyAddExpire(key, cacheTime);
+            return result;
         }
 
         /// <summary>
@@ -129,14 +114,11 @@ namespace Common.Redis
         /// <param name="value"></param>
         /// <param name="cacheTime"></param>
         /// <returns></returns>
-        public async Task<bool> SetAsync(string key, string value, TimeSpan cacheTime = default(TimeSpan))
+        public async Task<bool> StrSetAsync(string key, string value, TimeSpan? cacheTime = null)
         {
-            if (cacheTime == default(TimeSpan))
-            {
-                cacheTime = defaultTimeSpan;
-            }
-
-            return await GetRedisData().StringSetAsync(DataKey(key), value, cacheTime);
+            var result = await _db.StringSetAsync(DataKey(key), value);
+            await this.KeyAddExpireAsync(key, cacheTime);
+            return result;
         }
 
         /// <summary>
@@ -146,57 +128,63 @@ namespace Common.Redis
         /// <param name="value"></param>
         /// <param name="cacheTime"></param>
         /// <returns></returns>
-        public bool SetNx(string key, string value, TimeSpan cacheTime = default(TimeSpan))
+        public bool StrSetNx(string key, string value, TimeSpan? cacheTime = null)
         {
-            if (cacheTime == default(TimeSpan))
+            return _db.StringSet(DataKey(key), value, cacheTime, When.NotExists, CommandFlags.None); ;
+        }
+
+        /// <summary>
+        /// 自增
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public long StrIncr(string key, long value = 1)
+        {
+            return _db.StringIncrement(key, value);
+        }
+
+        /// <summary>
+        /// 自减
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        public long StrDecr(string key, long value = 1)
+        {
+            return _db.StringDecrement(key, value);
+        }
+
+        /// <summary>
+        /// 批量设置键值对
+        /// </summary>
+        /// <param name="keyValues"></param>
+        /// <returns></returns>
+        public bool StrBatch(Dictionary<string, string> keyValues)
+        {
+            var redisKeyValues = keyValues.Select(kv => new KeyValuePair<RedisKey, RedisValue>(kv.Key, kv.Value)).ToArray();
+            return _db.StringSet(redisKeyValues);
+        }
+
+        /// <summary>
+        /// 批量获取值
+        /// </summary>
+        /// <param name="keys"></param>
+        /// <returns></returns>
+        public Dictionary<string, string> GetBatch(IEnumerable<string> keys)
+        {
+            var redisKeys = keys.Select(k => (RedisKey)k).ToArray();
+            RedisValue[] values = _db.StringGet(redisKeys);
+
+            var result = new Dictionary<string, string>();
+            int i = 0;
+            foreach (var key in keys)
             {
-                cacheTime = defaultTimeSpan;
+                result[key] = values[i];
+                i++;
             }
-            return GetRedisData().StringSet(DataKey(key), value, cacheTime, When.NotExists, CommandFlags.None);
-
+            return result;
         }
-
-        /// <summary>
-        /// 判断是否存在
-        /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public bool Exist(string key)
-        {
-            return GetRedisData().KeyExists(DataKey(key));
-        }
-
-        /// <summary>
-        ///  判断是否存在(异步)
-        /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public async Task<bool> ExistAsync(string key)
-        {
-            return await GetRedisData().KeyExistsAsync(DataKey(key));
-        }
-
-        /// <summary>
-        /// 删除
-        /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        public bool Delete(string key)
-        {
-            return GetRedisData().KeyDelete(DataKey(key));
-        }
-
-        /// <summary>
-        /// 删除值(异步)
-        /// </summary>
-        /// <param name="key"></param>
-        /// <returns></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public async Task<bool> DeleteAsync(string key)
-        {
-            return await GetRedisData().KeyDeleteAsync(DataKey(key));
-        }
-
         #endregion
 
         #region Hash类型
@@ -206,7 +194,7 @@ namespace Common.Redis
         public async Task HashSetAsync<T>(string key, string field, T value)
         {
             string json = JsonConvert.SerializeObject(value);
-            await GetRedisData().HashSetAsync(DataKey(key), field, json);
+            await _db.HashSetAsync(DataKey(key), field, json);
         }
 
         /// <summary>
@@ -215,7 +203,7 @@ namespace Common.Redis
         public async Task HashSetAsync<T>(string key, Dictionary<string, T> values)
         {
             var entries = values.Select(x => new HashEntry(x.Key, JsonConvert.SerializeObject(x.Value))).ToArray();
-            await GetRedisData().HashSetAsync(DataKey(key), entries);
+            await _db.HashSetAsync(DataKey(key), entries);
         }
 
         /// <summary>
@@ -223,7 +211,7 @@ namespace Common.Redis
         /// </summary>
         public async Task<T> HashGetAsync<T>(string key, string field)
         {
-            var value = await GetRedisData().HashGetAsync(DataKey(key), field);
+            var value = await _db.HashGetAsync(DataKey(key), field);
             if (value.IsNullOrEmpty) return default;
             return JsonConvert.DeserializeObject<T>(value);
         }
@@ -233,7 +221,7 @@ namespace Common.Redis
         /// </summary>
         public async Task<Dictionary<string, T>> HashGetAllAsync<T>(string key)
         {
-            var entries = await GetRedisData().HashGetAllAsync(DataKey(key));
+            var entries = await _db.HashGetAllAsync(DataKey(key));
             return entries.ToDictionary(
                 e => e.Name.ToString(),
                 e => JsonConvert.DeserializeObject<T>(e.Value) ?? throw new Exception($"反序列化字段 {e.Name} 失败")
@@ -246,7 +234,7 @@ namespace Common.Redis
         public async Task<bool> HashDeleteAsync(string key, params string[] fields)
         {
             RedisValue[] values = fields.Select(f => (RedisValue)f).ToArray();
-            long count = await GetRedisData().HashDeleteAsync(DataKey(key), values);
+            long count = await _db.HashDeleteAsync(DataKey(key), values);
             return count > 0;
         }
 
@@ -255,7 +243,7 @@ namespace Common.Redis
         /// </summary>
         public async Task<bool> HashExistsAsync(string key, string field)
         {
-            return await GetRedisData().HashExistsAsync(DataKey(key), field);
+            return await _db.HashExistsAsync(DataKey(key), field);
         }
 
         /// <summary>
@@ -263,7 +251,7 @@ namespace Common.Redis
         /// </summary>
         public async Task<long> HashLengthAsync(string key)
         {
-            return await GetRedisData().HashLengthAsync(DataKey(key));
+            return await _db.HashLengthAsync(DataKey(key));
         }
 
         /// <summary>
@@ -271,7 +259,7 @@ namespace Common.Redis
         /// </summary>
         public async Task<double> HashIncrementAsync(string key, string field, double value = 1)
         {
-            return await GetRedisData().HashIncrementAsync(DataKey(key), field, value);
+            return await _db.HashIncrementAsync(DataKey(key), field, value);
         }
 
         /// <summary>
@@ -279,7 +267,7 @@ namespace Common.Redis
         /// </summary>
         public async Task<double> HashDecrementAsync(string key, string field, double value = 1)
         {
-            return await GetRedisData().HashDecrementAsync(DataKey(key), field, value);
+            return await _db.HashDecrementAsync(DataKey(key), field, value);
         }
 
         /// <summary>
@@ -287,7 +275,7 @@ namespace Common.Redis
         /// </summary>
         public IEnumerable<KeyValuePair<string, string>> HashScan(string key, string pattern = "*")
         {
-            foreach (var entry in GetRedisData().HashScan(DataKey(key), pattern))
+            foreach (var entry in _db.HashScan(DataKey(key), pattern))
             {
                 yield return new KeyValuePair<string, string>(entry.Name, entry.Value);
             }
@@ -295,25 +283,56 @@ namespace Common.Redis
         #endregion
 
         #region Set集合
+
         /// <summary>
-        /// 查询
+        /// 判断元素是否存在
         /// </summary>
         /// <param name="key"></param>
         /// <param name="value"></param>
         /// <returns></returns>
         public async Task<bool> SetContainsAsync(string key, string value)
         {
-            return await GetRedisData().SetContainsAsync(DataKey(key), value);
+            return await _db.SetContainsAsync(DataKey(key), value);
         }
+
+        /// <summary>
+        /// 获取所有成员
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public HashSet<string> SetGetAll(string key)
+        {
+            var values = _db.SetMembers(key);
+            return new HashSet<string>(values.Select(v => (string)v));
+        }
+
         /// <summary>
         /// 添加
         /// </summary>
         /// <param name="key"></param>
         /// <param name="value"></param>
+        /// <param name="cacheTime"></param>
         /// <returns></returns>
-        public async Task<bool> SetAddAsync(string key, string value)
+        public async Task<bool> SetAddAsync(string key, string value, TimeSpan? cacheTime = null)
         {
-            return await GetRedisData().SetAddAsync(DataKey(key), value);
+            var result = await _db.SetAddAsync(DataKey(key), value);
+            await this.KeyAddExpireAsync(key, cacheTime);
+            return result;
+        }
+
+        /// <summary>
+        /// 批量添加
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="values"></param>
+        /// <param name="expiry"></param>
+        public async Task<long> SetAddBatchAsync(string key, IEnumerable<string> values, TimeSpan? cacheTime = null)
+        {
+            var redisValues = values.Select(v => (RedisValue)v).ToArray();
+            var result = await _db.SetAddAsync(DataKey(key), redisValues);
+            await this.KeyAddExpireAsync(key, cacheTime);
+            return result;
+
         }
         /// <summary>
         /// 移除
@@ -323,7 +342,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<bool> SetRemoveAsync(string key, string value)
         {
-            return await GetRedisData().SetRemoveAsync(DataKey(key), value);
+            return await _db.SetRemoveAsync(DataKey(key), value);
         }
 
         /// <summary>
@@ -341,13 +360,13 @@ namespace Common.Redis
             switch (num)
             {
                 case 1:
-                    result = await GetRedisData().SetCombineAsync(SetOperation.Intersect, DataKey(first), DataKey(second));
+                    result = await _db.SetCombineAsync(SetOperation.Intersect, DataKey(first), DataKey(second));
                     break;
                 case 2:
-                    result = await GetRedisData().SetCombineAsync(SetOperation.Difference, DataKey(first), DataKey(second));
+                    result = await _db.SetCombineAsync(SetOperation.Difference, DataKey(first), DataKey(second));
                     break;
                 default:
-                    result = await GetRedisData().SetCombineAsync(SetOperation.Union, DataKey(first), DataKey(second));
+                    result = await _db.SetCombineAsync(SetOperation.Union, DataKey(first), DataKey(second));
                     break;
             }
             return result;
@@ -363,7 +382,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<double?> SortedSetScoreAsync(string key, string member)
         {
-            return await GetRedisData().SortedSetScoreAsync(DataKey(key), member);
+            return await _db.SortedSetScoreAsync(DataKey(key), member);
         }
         /// <summary>
         /// 获取范围数据，索引0开始
@@ -374,7 +393,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(string key, long start, long stop)
         {
-            return await GetRedisData().SortedSetRangeByRankWithScoresAsync(DataKey(key), start, stop);
+            return await _db.SortedSetRangeByRankWithScoresAsync(DataKey(key), start, stop);
         }
         /// <summary>
         /// 添加
@@ -385,8 +404,37 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<bool> SortedSetAddAsync(string key, string member, double score)
         {
-            return await GetRedisData().SortedSetAddAsync(DataKey(key), member, score);
+            return await _db.SortedSetAddAsync(DataKey(key), member, score);
         }
+
+        /// <summary>
+        /// 高性能批量添加 SortedSet 元素
+        /// </summary>
+        /// <param name="key">SortedSet key</param>
+        /// <param name="entries">要添加的元素集合</param>
+        public async Task SortedSetAddBatchAsync(string key, IEnumerable<SortedSetEntry> entries)
+        {
+            // 每批处理的元素数量
+            var batchSize = 1000; 
+            var batchList = new List<SortedSetEntry>(batchSize);
+            foreach (var entry in entries)
+            {
+                batchList.Add(entry);
+
+                if (batchList.Count >= batchSize)
+                {
+                    await _db.SortedSetAddAsync(DataKey(key), batchList.ToArray());
+                    batchList.Clear();
+                }
+            }
+
+            // 添加剩余不足一批的数据
+            if (batchList.Count > 0)
+            {
+                await _db.SortedSetAddAsync(DataKey(key), batchList.ToArray());
+            }
+        }
+
         /// <summary>
         /// 删除
         /// </summary>
@@ -395,7 +443,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<bool> SortedSetRemoveAsync(string key, string member)
         {
-            return await GetRedisData().SortedSetRemoveAsync(DataKey(key), member);
+            return await _db.SortedSetRemoveAsync(DataKey(key), member);
         }
         #endregion
 
@@ -408,7 +456,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<long> GeoAddAsync(string key, GeoEntry[] entry)
         {
-            return await GetRedisData().GeoAddAsync(DataKey(key), entry);
+            return await _db.GeoAddAsync(DataKey(key), entry);
         }
         /// <summary>
         ///  计算两个点的距离
@@ -419,7 +467,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<double?> GeoDistanceAsync(string key, string num1, string num2)
         {
-            return await GetRedisData().GeoDistanceAsync(DataKey(key), num1, num2, GeoUnit.Kilometers);
+            return await _db.GeoDistanceAsync(DataKey(key), num1, num2, GeoUnit.Kilometers);
         }
 
         /// <summary>
@@ -430,7 +478,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task<GeoPosition?[]> GeoHashAsync(string key, RedisValue[] redisValues)
         {
-            return await GetRedisData().GeoPositionAsync(DataKey(key), redisValues);
+            return await _db.GeoPositionAsync(DataKey(key), redisValues);
         }
 
         #endregion
@@ -438,7 +486,7 @@ namespace Common.Redis
         #region BitMap
         public async Task<bool> StringSetBitAsync(string key, long offset, bool flag)
         {
-            return await GetRedisData().StringSetBitAsync(DataKey(key), offset, flag);
+            return await _db.StringSetBitAsync(DataKey(key), offset, flag);
         }
 
         #endregion
@@ -446,12 +494,12 @@ namespace Common.Redis
         #region HyperLogLog
         public async Task<bool> HyperLogLogAddAsync(string key, string value)
         {
-            return await GetRedisData().HyperLogLogAddAsync(DataKey(key), value);
+            return await _db.HyperLogLogAddAsync(DataKey(key), value);
         }
 
         public async Task<long> HyperLogLogLengthAsync(string key)
         {
-            return await GetRedisData().HyperLogLogLengthAsync(DataKey(key));
+            return await _db.HyperLogLogLengthAsync(DataKey(key));
         }
         /// <summary>
         /// 合并多个HyperLogLog成一个
@@ -462,7 +510,7 @@ namespace Common.Redis
         /// <returns></returns>
         public async Task HyperLogLogMergeAsync(string key, string first, string second)
         {
-            await GetRedisData().HyperLogLogMergeAsync(DataKey(key), first, second);
+            await _db.HyperLogLogMergeAsync(DataKey(key), first, second);
         }
         #endregion
 
@@ -486,7 +534,7 @@ namespace Common.Redis
         /// <returns></returns>
         public string StreamAdd(string key, string filed, string value)
         {
-            var result = GetRedisData().StreamAdd(DataKey(key), filed, value);
+            var result = _db.StreamAdd(DataKey(key), filed, value);
             return result;
         }
 
@@ -498,7 +546,7 @@ namespace Common.Redis
         /// <returns></returns>
         public StreamEntry[] StreamRead(string key, string position)
         {
-            var result = GetRedisData().StreamRead(DataKey(key), position);
+            var result = _db.StreamRead(DataKey(key), position);
             return result;
         }
 
@@ -511,7 +559,7 @@ namespace Common.Redis
         /// <returns></returns>
         public bool StreamCreateConsumerGroup(string key, string nameGroup, string position)
         {
-            var result = GetRedisData().StreamCreateConsumerGroup(DataKey(key), nameGroup, position);
+            var result = _db.StreamCreateConsumerGroup(DataKey(key), nameGroup, position);
             return result;
         }
 
@@ -523,7 +571,7 @@ namespace Common.Redis
         /// <returns></returns>
         public StreamGroupInfo[] StreamGroupInfo(string key)
         {
-            var result = GetRedisData().StreamGroupInfo(DataKey(key));
+            var result = _db.StreamGroupInfo(DataKey(key));
             return result;
         }
         /// <summary>
@@ -537,7 +585,7 @@ namespace Common.Redis
         /// <returns></returns>
         public StreamEntry[] StreamReadGroup(string key, string nameGroup, string consumer, string position, int count = 1)
         {
-            var result = GetRedisData().StreamReadGroup(DataKey(key), nameGroup, consumer, position, count);
+            var result = _db.StreamReadGroup(DataKey(key), nameGroup, consumer, position, count);
             return result;
         }
 
@@ -550,7 +598,7 @@ namespace Common.Redis
         /// <returns></returns>
         public long StreamAcknowledge(string key, string nameGroup, string messageId)
         {
-            var result = GetRedisData().StreamAcknowledge(DataKey(key), nameGroup, messageId);
+            var result = _db.StreamAcknowledge(DataKey(key), nameGroup, messageId);
             return result;
         }
 
@@ -562,7 +610,7 @@ namespace Common.Redis
         /// <returns></returns>
         public StreamPendingInfo StreamPending(string key, string nameGroup)
         {
-            var result = GetRedisData().StreamPending(DataKey(key), nameGroup);
+            var result = _db.StreamPending(DataKey(key), nameGroup);
             return result;
         }
 
@@ -577,239 +625,26 @@ namespace Common.Redis
         /// <returns></returns>
         public StreamPendingMessageInfo[] StreamPendingMessages(string key, string nameGroup, string consumer, string minId, int count = 100)
         {
-            var result = GetRedisData().StreamPendingMessages(DataKey(key), nameGroup, count, consumer, minId: minId);
+            var result = _db.StreamPendingMessages(DataKey(key), nameGroup, count, consumer, minId: minId);
             return result;
         }
-        #endregion
-
-        #region 缓存穿透、击穿
-
-        public async Task<bool> BloomAddAsync(RedisKey key, RedisValue value)
-            => (bool)await GetRedisData().ExecuteAsync("BF.ADD", key, value);
-
-        /// <summary>
-        /// 缓存穿透-缓存空值
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <typeparam name="ID"></typeparam>
-        /// <param name="keyPrefix"></param>
-        /// <param name="t"></param>
-        /// <param name="id"></param>
-        /// <param name="func"></param>
-        /// <param name="timeSpan"></param>
-        /// <returns></returns>
-        public T CachePenetration<T, ID>(string keyPrefix, T type, ID id, Func<ID, T> func, TimeSpan timeSpan)
-        {
-            string key = string.Format("{0}:{1}", keyPrefix, id);
-            // 获取缓存
-            string getValue = GetAsync(key).Result;
-            // 判断缓存是否存在
-            if (!string.IsNullOrWhiteSpace(getValue))
-            {
-                //存在直接返回
-                return JsonConvert.DeserializeObject<T>(getValue);
-            }
-            // 判断命中的是空值
-            if (getValue != null)
-            {
-                // 返回一个错误信息
-                return default(T);
-            }
-            // 不存在执行查询方法
-            T t = func(id);
-            if (t == null)
-            {
-                // 存入空值
-                this.SetAsync(key, "", timeSpan).Wait();
-                // 返回错误信息
-                return default(T);
-            }
-            // 存在，写入缓存
-            this.Set(key, JsonConvert.SerializeObject(t), timeSpan);
-            return t;
-        }
-
-        /// <summary>
-        /// 缓存击穿-互斥锁
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <typeparam name="ID"></typeparam>
-        /// <param name="keyPrefix"></param>
-        /// <param name="type"></param>
-        /// <param name="id"></param>
-        /// <param name="func"></param>
-        /// <param name="timeSpan"></param>
-        /// <returns></returns>
-        public T CacheBreakdownLock<T, ID>(string keyPrefix, T type, ID id, Func<ID, T> func, TimeSpan timeSpan)
-        {
-            string key = string.Format("{0}:{1}", keyPrefix, id);
-            // 获取缓存
-            string getValue = GetAsync(key).Result;
-            // 判断缓存是否存在
-            if (!string.IsNullOrWhiteSpace(getValue))
-            {
-                //存在直接返回
-                return JsonConvert.DeserializeObject<T>(getValue);
-            }
-            // 判断命中的是空值
-            if (getValue != null)
-            {
-                // 返回一个错误信息
-                return default(T);
-            }
-            string lockKey = string.Format("{0}:{1}", CacheKeys.LOCK_KEY, id);
-            T t = default(T);
-            try
-            {
-                // 获取互斥锁
-                var isLock = Set(lockKey, "lock", new TimeSpan(0, 10, 0));
-                // 判断是否获取成功
-                if (!isLock)
-                {
-                    // 获取锁失败，休眠并重试
-                    Thread.Sleep(10000);
-                    return CacheBreakdownLock(keyPrefix, type, id, func, timeSpan);
-                }
-                // 获取锁成功，执行查询
-                t = func(id);
-                if (t == null)
-                {
-                    // 存入空值
-                    this.SetAsync(key, "", timeSpan).Wait();
-                    // 返回错误信息
-                    return default(T);
-                }
-                // 存在，写入缓存
-                this.SetAsync(key, JsonConvert.SerializeObject(t), timeSpan).Wait();
-
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-            finally
-            {
-                //释放锁
-                Delete(lockKey);
-            }
-            return t;
-        }
-
-        /// <summary>
-        /// 缓存穿透-逻辑过期
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <typeparam name="ID"></typeparam>
-        /// <param name="keyPrefix"></param>
-        /// <param name="type"></param>
-        /// <param name="id"></param>
-        /// <param name="func"></param>
-        /// <param name="timeSpan"></param>
-        /// <returns></returns>
-        public T CacheBreakdownTimeSpan<T, ID>(string keyPrefix, T type, ID id, Func<ID, T> func, TimeSpan timeSpan)
-        {
-            string key = string.Format("{0}:{1}", keyPrefix, id);
-            // 获取缓存
-            string getValue = GetAsync(key).Result;
-            // 判断命中的是空值
-            if (string.IsNullOrWhiteSpace(getValue))
-            {
-                // 返回一个错误信息
-                return default(T);
-            }
-            // 反序列化json
-            RedisData redisData = JsonConvert.DeserializeObject<RedisData>(getValue);
-            long time = redisData.expireTime.Value;
-            // 转泛型
-            //T t = (T)Convert.ChangeType(, typeof(T));
-            T t = JsonConvert.DeserializeObject<T>(redisData.obj.ToString());
-            // 获取当前时间戳
-            long nowTime = (DateTime.Now.ToUniversalTime().Ticks - 621355968000000000) / 10000000;
-            // 判断时间戳是否过期
-            if (time > nowTime)
-            {
-                // 未过期，直接返回店铺信息
-                return t;
-            }
-            // 已经过期，缓存重建
-            // 获取互斥锁
-            string lockKey = string.Format("{0}:{1}", CacheKeys.LOCKTIMESPAN_KEY, id);
-            var isLock = Set(lockKey, "lockTimeSpan", new TimeSpan(0, 10, 0));
-            // 判断是否获取成功
-            if (isLock)
-            {
-                // 成功，开启独立线程，实现缓存重建
-                Task.Run(() =>
-                {
-                    try
-                    {
-                        // 执行查询
-                        T tt = func(id);
-                        // 重建缓存
-                        RedisData data = new RedisData();
-                        data.obj = tt;
-                        data.expireTime = time;
-                        SetAsync(lockKey, JsonConvert.SerializeObject(data), timeSpan).Wait();
-                    }
-                    catch (Exception ex)
-                    {
-                        throw new Exception(ex.Message);
-                    }
-                    finally
-                    {
-                        //释放锁
-                        Delete(lockKey);
-                    }
-                });
-            }
-            return t;
-        }
-
-        #endregion
-
-        #region 自增唯一id
-        /// <summary>
-        /// 开始时间戳
-        /// </summary>
-        private readonly long BeginTimestamp = 1672502400L;
-        /// <summary>
-        /// 序列号位数
-        /// </summary>
-        private readonly int CountBits = 32;
-
-        /// <summary>
-        /// 生成唯一id
-        /// </summary>
-        /// <param name="keyPrefix"></param>
-        /// <returns></returns>
-        public long NextId(string keyPrefix)
-        {
-            //生成时间戳
-            long nowTime = (DateTime.Now.ToUniversalTime().Ticks - 621355968000000000) / 10000000;
-            long timeStamp = nowTime - BeginTimestamp;
-            // 获取日期
-            string date = DateTime.Now.ToString("yyyy:MM:dd");
-            // 自增长
-            long count = GetRedisData().StringIncrement(DataKey("icr:") + keyPrefix + ":" + date);
-            return timeStamp << CountBits | count;
-        }
-
         #endregion
 
         #region lua脚本
 
         public RedisResult LuaScripts(string str, object obj)
         {
-            return GetRedisData().ScriptEvaluate(LuaScript.Prepare(str), obj);
+            return _db.ScriptEvaluate(LuaScript.Prepare(str), obj);
         }
 
         public async Task<RedisResult> ExecuteAsync(string str, params object[] obj)
         {
-            return await GetRedisData().ExecuteAsync(str, obj);
+            return await _db.ExecuteAsync(str, obj);
         }
 
         #endregion
 
+        #region 释放资源
         /// <summary>
         /// 释放资源
         /// </summary>
@@ -842,5 +677,7 @@ namespace Common.Redis
         {
             Dispose(false); // 防御性调用，确保即使用户忘了调用 Dispose() 也能释放
         }
+
+        #endregion
     }
 }

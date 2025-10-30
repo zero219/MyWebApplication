@@ -8,24 +8,45 @@ namespace Common.Redis
 {
     public interface IRedisCacheManager
     {
-        IDatabase GetRedisData();
-        string Get(string key);
+        string StrGet(string key);
 
-        Task<string> GetAsync(string key);
+        Task<string> StrGetAsync(string key);
 
-        bool Set(string key, string value, TimeSpan cacheTime);
+        bool StrSet(string key, string value, TimeSpan? cacheTime = null);
 
-        Task<bool> SetAsync(string key, string value, TimeSpan cacheTime);
+        Task<bool> StrSetAsync(string key, string value, TimeSpan? cacheTime = null);
 
-        bool SetNx(string key, string value, TimeSpan cacheTime = default(TimeSpan));
+        bool StrSetNx(string key, string value, TimeSpan? cacheTime = null);
 
-        bool Exist(string key);
+        /// <summary>
+        /// 自增
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        long StrIncr(string key, long value = 1);
 
-        Task<bool> ExistAsync(string key);
+        /// <summary>
+        /// 自减
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        long StrDecr(string key, long value = 1);
 
-        bool Delete(string key);
+        /// <summary>
+        /// 批量设置键值对
+        /// </summary>
+        /// <param name="keyValues"></param>
+        /// <returns></returns>
+        bool StrBatch(Dictionary<string, string> keyValues);
 
-        Task<bool> DeleteAsync(string key);
+        /// <summary>
+        /// 批量获取值
+        /// </summary>
+        /// <param name="keys"></param>
+        /// <returns></returns>
+        public Dictionary<string, string> GetBatch(IEnumerable<string> keys);
 
         /// <summary>
         /// 设置单个字段
@@ -79,7 +100,23 @@ namespace Common.Redis
 
         Task<bool> SetContainsAsync(string key, string value);
 
-        Task<bool> SetAddAsync(string key, string value);
+        /// <summary>
+        /// 获取所有成员
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        HashSet<string> SetGetAll(string key);
+
+        Task<bool> SetAddAsync(string key, string value, TimeSpan? cacheTime = null);
+
+        /// <summary>
+        /// 批量添加
+        /// </summary>
+        /// <param name="key"></param>
+        /// <param name="values"></param>
+        /// <param name="cacheTime"></param>
+        /// <returns></returns>
+        Task<long> SetAddBatchAsync(string key, IEnumerable<string> values, TimeSpan? cacheTime = null);
 
         Task<bool> SetRemoveAsync(string key, string value);
 
@@ -90,6 +127,8 @@ namespace Common.Redis
         Task<SortedSetEntry[]> SortedSetRangeByRankWithScoresAsync(string key, long start, long stop);
 
         Task<bool> SortedSetAddAsync(string key, string member, double score);
+
+        Task SortedSetAddBatchAsync(string key, IEnumerable<SortedSetEntry> entries);
 
         Task<bool> SortedSetRemoveAsync(string key, string member);
 
@@ -123,6 +162,22 @@ namespace Common.Redis
         StreamPendingInfo StreamPending(string key, string nameGroup);
 
         StreamPendingMessageInfo[] StreamPendingMessages(string key, string nameGroup, string consumer, string minId, int count = 1);
+        /// <summary>
+        /// key加上过期时间
+        /// </summary>
+        void KeyAddExpire(string key, TimeSpan? cacheTime = null);
+        /// <summary>
+        /// key加上过期时间
+        /// </summary>
+        Task KeyAddExpireAsync(string key, TimeSpan? cacheTime = null);
+
+        bool Exist(string key);
+
+        Task<bool> ExistAsync(string key);
+
+        bool Delete(string key);
+
+        Task<bool> DeleteAsync(string key);
 
         void Dispose();
 

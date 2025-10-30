@@ -53,23 +53,14 @@ namespace Api.Controllers
         public async Task<IActionResult> Test()
         {
             string key = string.Format("{0}:{1}", CacheKeys.MY_KEY, "bbdee09c-089b-4d30-bece-44df59237100");
-            var getKey = _redisCacheManager.GetAsync(key).Result;
+            var getKey = await _redisCacheManager.StrGetAsync(key);
             if (!string.IsNullOrEmpty(getKey))
             {
                 return Ok(getKey);
             }
             var company = await _companyService.QueryWhere(p => p.Id == Guid.Parse("bbdee09c-089b-4d30-bece-44df59237100")).FirstOrDefaultAsync();
             var companyStr = JsonConvert.SerializeObject(company);
-            var setKey = _redisCacheManager.SetAsync(key, companyStr, new TimeSpan(0, 0, 59));
-            _redisCacheManager.GetRedisData().HashSet("user:1001", "name", "Alice");
-
-            // 多个字段设置
-            HashEntry[] entries = { new HashEntry("age", 30), new HashEntry("email", "alice@example.com"), new HashEntry(1, "{name:\"tom\"}"), };
-            _redisCacheManager.GetRedisData().HashSet("user:1001", entries);
-
-
-            await _redisCacheManager.GetRedisData().SetAddAsync("set:A", new RedisValue[] { "a", "b", "c" });
-            await _redisCacheManager.GetRedisData().SetAddAsync("set:B", new RedisValue[] { 1, "c", "d" });
+            var setKey = await _redisCacheManager.StrSetAsync(key, companyStr, new TimeSpan(0, 0, 59));
             return Ok(company);
         }
 
@@ -91,6 +82,14 @@ namespace Api.Controllers
 
             var result = await _redisCacheManager.HashGetAllAsync<Dictionary<string, dynamic>>(key);
 
+            await _redisCacheManager.SetAddBatchAsync("mySet", new[] { "apple", "banana", "orange" }, TimeSpan.FromMinutes(1));
+
+            var data = new List<SortedSetEntry>();
+            for (int i = 1; i <= 10000; i++)
+            {
+                data.Add(new SortedSetEntry($"member{i}", i));
+            }
+            await _redisCacheManager.SortedSetAddBatchAsync("myZSet", data);
             return Ok("添加购物车成功");
         }
 

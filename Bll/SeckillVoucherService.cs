@@ -143,7 +143,7 @@ namespace Bll
             // 获取线程id
             var threadId = string.Format("{0}-{1}", guid, Thread.CurrentThread.ManagedThreadId.ToString());
             // 加锁
-            var lockStr = _redisCacheManager.SetNx(key, threadId, new TimeSpan(0, 1, 0, 0));
+            var lockStr = _redisCacheManager.StrSetNx(key, threadId, new TimeSpan(0, 1, 0, 0));
             // 加锁失败
             if (!lockStr)
             {
@@ -185,7 +185,7 @@ namespace Bll
             finally
             {
                 // 解决Redis分布式锁误删问题
-                var threadIdValue = _redisCacheManager.Get(key);
+                var threadIdValue = _redisCacheManager.StrGet(key);
                 string nowThreadId = string.Format("{0}-{1}", guid, Thread.CurrentThread.ManagedThreadId.ToString());
                 // 判断标示是否一致
                 if (nowThreadId.Equals(threadIdValue))
@@ -228,7 +228,7 @@ namespace Bll
             // 获取线程id
             var threadId = string.Format("{0}-{1}", guid, Thread.CurrentThread.ManagedThreadId.ToString());
             // 加锁
-            var lockStr = _redisCacheManager.SetNx(key, threadId, new TimeSpan(0, 1, 0, 0));
+            var lockStr = _redisCacheManager.StrSetNx(key, threadId, new TimeSpan(0, 1, 0, 0));
             // 加锁失败
             if (!lockStr)
             {
